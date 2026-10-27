@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 实验产物（大文件不入库）
+results/
+data/
+*.npz
+*.parquet
+
+# 本地配置与密钥
+.env
+*.local.*
+
+# 工具
+.ruff_cache/
+
+# 代理工作区（会话记忆与临时读取产物，不入版本控制）
+.workbuddy/
+
+# 参考文档《ODIN 仿真平台技术选型与实施架构》：含内部架构信息，
+# 是否随公开仓库发布待确认，故本地保留在 docs/reference/ 但不入版本控制。
+docs/reference/
