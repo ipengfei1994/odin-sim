@@ -111,6 +111,9 @@ def test_builtin_registration_is_all_or_nothing():
     半注册会让调用方以为模型可用，是实验静默跑错实现的典型来源。
     """
     err = builtin_registration_error()
+    # 平台原生拓扑不依赖 baseline，任何环境下都应在册
+    assert "platform-v1" in TOPOLOGY.names()
+
     if err is None:
         assert "g3-baseline-v1" in DYNAMICS.names()
         assert "g3-baseline-v1" in TOPOLOGY.names()
@@ -119,5 +122,5 @@ def test_builtin_registration_is_all_or_nothing():
     else:
         assert isinstance(err, str) and err
         assert DYNAMICS.names() == []
-        assert TOPOLOGY.names() == []
+        assert TOPOLOGY.names() == ["platform-v1"]
         assert METRICS.names() == []

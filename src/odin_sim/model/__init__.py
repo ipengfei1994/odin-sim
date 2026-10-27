@@ -42,8 +42,16 @@ _builtin_error: str | None = None
 
 
 def register_builtins() -> None:
-    """注册内建适配器。重复调用是幂等的（同名覆盖）。"""
+    """注册内建实现。重复调用是幂等的（同名覆盖）。
+
+    平台原生的拓扑生成器**不依赖 baseline**，先注册；G3 适配器依赖
+    baseline，失败时只记录原因，不影响前面已注册的部分。
+    """
     global _builtin_error
+    from ..topology.model import TOPOLOGY_NAME, PlatformTopology
+
+    TOPOLOGY.register(TOPOLOGY_NAME, PlatformTopology(), overwrite=True)
+
     try:
         from .adapters.g3 import register as _register_g3
 
