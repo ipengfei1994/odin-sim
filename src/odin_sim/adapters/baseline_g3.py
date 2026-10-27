@@ -1,9 +1,12 @@
-"""运行期加载 G3 baseline 内核（位于 odin-agents 项目，只读接入）。
+"""运行期加载外部 G3 baseline 内核（只读接入）。
+
+内核位置由环境变量 ``ODIN_BASELINE_ROOT`` 或 ``--baseline-root`` 指定；
+本仓库不包含内核源码，也不假设其所在项目。
 
 设计约束
 --------
 1. 不复制 baseline 源码进本仓库（避免代码分叉）。
-2. 不修改 odin-agents 的任何文件；只把其 ``src`` 目录加入 ``sys.path`` 后 import。
+2. 不修改内核所在项目的任何文件；只把其 ``src`` 目录加入 ``sys.path`` 后 import。
 3. 加载时校验模型版本，版本不符直接报错，不静默继续。
 """
 from __future__ import annotations
@@ -69,7 +72,7 @@ def resolve_root(root: str | Path | None = None) -> Path:
 
     raise BaselineError(
         "未指定 baseline 根目录。请设置环境变量 "
-        f"{ENV_ROOT}=<odin-agents/baseline> 或传入 --baseline-root 参数。"
+        f"{ENV_ROOT}=<baseline-root> 或传入 --baseline-root 参数。"
     )
 
 

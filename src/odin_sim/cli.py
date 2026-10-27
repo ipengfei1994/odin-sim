@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     v = sub.add_parser("verify-baseline", help="对 G3 baseline 数据集做轨迹指纹回归")
     v.add_argument("--baseline-root", default=None,
-                   help="odin-agents/baseline 根目录；也可用环境变量 ODIN_BASELINE_ROOT")
+                   help="外部 G3 baseline 根目录；也可用环境变量 ODIN_BASELINE_ROOT")
     v.add_argument("--data", required=True, help="baseline 的逐次运行 CSV 路径")
     v.add_argument("--scenario", default="polarized", help="场景名（默认 polarized）")
     v.add_argument("--limit", type=int, default=0, help="只校验前 N 行（0 表示全部）")
@@ -94,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     m = sub.add_parser("verify-metrics", help="对 G3 baseline 数据集做指标等价性回归")
     m.add_argument("--baseline-root", default=None,
-                   help="odin-agents/baseline 根目录；也可用环境变量 ODIN_BASELINE_ROOT")
+                   help="外部 G3 baseline 根目录；也可用环境变量 ODIN_BASELINE_ROOT")
     m.add_argument("--data", required=True, help="baseline 的逐次运行 CSV 路径")
     m.add_argument("--scenario", default="polarized", help="场景名（默认 polarized）")
     m.add_argument("--limit", type=int, default=0, help="只校验前 N 行（0 表示全部）")

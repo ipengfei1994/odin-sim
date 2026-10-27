@@ -2,13 +2,13 @@
 
 代码来源与一致性
 ----------------
-``ba`` / ``er`` / ``ring`` 三种拓扑的**随机数消耗方式**必须与 G3 baseline
+``ba`` / ``er`` / ``ring`` 三种拓扑的**随机数消耗方式**必须与外部参考实现
 完全一致，否则同一 seed 会得到不同的图、``traj_hash`` 全军覆没。这三种
-是照 baseline 的 ``odin_g3/topology.py`` 移植的，并由
+是照参考实现的拓扑模块移植的，并由
 ``tests/regression/test_topology_baseline_parity.py`` 用 ``network_hash``
 逐位验证——不是"应当一致"，而是每次测试都会验证。
 
-``ws`` (Watts–Strogatz) 与 ``sbm`` (随机块模型) 是**本平台新增**，baseline
+``ws`` (Watts–Strogatz) 与 ``sbm`` (随机块模型) 是**本平台新增**，参考实现
 没有对应实现。它们的随机数消耗方式由本模块定义，属于新增研究假设，
 已登记在 ``docs/topology-assumptions.md``（A-1 / A-2）。
 

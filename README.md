@@ -21,6 +21,8 @@ edge comes from the platform's own output.</sub>
 
 <br>
 
+English · [简体中文](README.zh-CN.md)
+
 [Overview](#overview) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Experiments & Reproducibility](#experiments--reproducibility) · [Roadmap](#roadmap)
 
 ---
@@ -65,6 +67,10 @@ The two projects stay independently maintainable and communicate through
 explicit interfaces. ODIN-Sim loads the G3 baseline from `odin-agents` **read-only
 at runtime** — no source is copied into the dynamics kernel, and no file in
 `odin-agents` is modified.
+
+> **Boundary.** This repository contains only ODIN-Sim. Material belonging to
+> `odin-agents` is kept outside version control (`docs/internal/`) and is never
+> copied into the platform.
 
 ---
 
@@ -240,15 +246,18 @@ clearer.
 
 ## Documentation
 
-Design notes, verification records, and the reference baseline fact sheet are
-kept in [`docs/`](docs) (in Chinese):
+Design notes and verification records are kept in [`docs/`](docs). Most are in
+Chinese; the layering rules are described in [`docs/README.md`](docs/README.md).
 
 | Document | Contents |
 |---|---|
-| [`docs/w1-verification-record.md`](docs/w1-verification-record.md) | What was verified, how, and what it does **not** prove |
-| [`docs/baseline-g3-facts.md`](docs/baseline-g3-facts.md) | Fact sheet for the G3 baseline: model, parameters, metrics, assumption status |
+| [`docs/README.md`](docs/README.md) | Which documents ship with the repository and which do not, and why |
+| [`docs/architecture-v1.md`](docs/architecture-v1.md) | Architecture proposal v1 (draft) |
 | [`docs/topology-assumptions.md`](docs/topology-assumptions.md) | Parameters and RNG conventions assumed for `ws` / `sbm` — pending confirmation |
-| [`docs/architecture-v1.md`](docs/architecture-v1.md) | Architecture proposal v1 |
+
+> **Project boundary.** ODIN-Sim and `odin-agents` are separate projects. This
+> repository does not contain `odin-agents` models, parameters, or research
+> findings; those remain outside version control (`docs/internal/`).
 
 ---
 

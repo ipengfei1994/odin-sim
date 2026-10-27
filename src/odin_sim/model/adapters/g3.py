@@ -1,12 +1,13 @@
 """G3 baseline 适配器（协议转换层，不含数值逻辑）。
 
-本模块把 ``odin-agents/baseline`` 的 ``odin_g3`` 包包装成本平台的协议实现：
+本模块把外部 G3 baseline 内核（位置由 ``ODIN_BASELINE_ROOT`` 指定）包装成
+本平台的协议实现：
 
 * ``G3Dynamics``  —— 整段式动力学模型（``capabilities.stepwise = False``）
-* ``G3Topology``  —— 拓扑生成（ba / er / ring，与 baseline 同一实现）
+* ``G3Topology``  —— 拓扑生成（ba / er / ring，与内核同一实现）
 * 四个指标       —— extreme / joint / backfire / alert+lead_time
 
-**所有数值计算都委托给 baseline**，本模块不复制、不改写任何更新方程。
+**所有数值计算都委托给内核**，本模块不复制、不改写任何更新方程。
 因此本模块的等价性不是"应当成立"，而是由回归测试逐位验证的事实
 （见 ``tests/regression/test_g3_fingerprint.py``）。
 

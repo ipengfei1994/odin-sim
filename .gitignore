@@ -29,3 +29,8 @@ data/
 # 参考文档《ODIN 仿真平台技术选型与实施架构》：含内部架构信息，
 # 是否随公开仓库发布待确认，故本地保留在 docs/reference/ 但不入版本控制。
 docs/reference/
+
+# 外部项目（odin-agents）的资料与本项目的阶段性工作稿：
+# 含 odin-agents 的模型公式、参数、研究结论与本机路径，不属于 ODIN-Sim，
+# 本地保留在 docs/internal/ 供开发参考，但不入版本控制。
+docs/internal/

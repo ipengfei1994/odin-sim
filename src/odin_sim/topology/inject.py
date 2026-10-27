@@ -2,13 +2,13 @@
 
 背景
 ----
-baseline 的 ``odin_g3/model.py`` 在模块作用域写了 ``from .topology import
-build_network``，并直接调用它。这意味着**不替换这个引用，平台就无法让
-baseline 跑在 ws / sbm 上**——这是 W1-c 登记的限制之一，本模块解决它。
+外部 G3 内核的 ``model`` 模块在模块作用域写了 ``from .topology import
+build_network``，并直接调用它。这意味着**不替换这个引用，平台就无法让内核
+跑在 ws / sbm 上**——这是 W1-c 登记的限制之一，本模块解决它。
 
 安全性
 ------
-1. 只替换 ``model_module.build_network`` 这一个名字，不改 baseline 任何文件；
+1. 只替换 ``model_module.build_network`` 这一个名字，不修改内核任何文件；
 2. 用上下文管理器，退出时**必定**还原（``finally``）；
 3. 进入与退出时各清一次 baseline 的 ``_NET_CACHE``——该缓存的键不含
    ws/sbm 的新参数，不清会在换参数后返回旧图；
