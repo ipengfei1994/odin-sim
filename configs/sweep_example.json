@@ -1,0 +1,22 @@
+{
+  "name": "example-g3-placement-scan",
+  "model": "g3-baseline-v1",
+  "base": {
+    "mode": "cross",
+    "placement": "hub",
+    "beta_gov": 0.20,
+    "tau": 60,
+    "scenario": "polarized"
+  },
+  "axes": {
+    "placement": ["hub", "random"],
+    "beta_gov": [0.0, 0.2, 0.4]
+  },
+  "seeds": {
+    "start": 1,
+    "count": 5,
+    "step": 1
+  },
+  "store_trajectory": false,
+  "on_error": "abort"
+}

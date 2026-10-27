@@ -82,6 +82,12 @@ class RunOutput:
     meta: dict[str, Any]
     model_name: str = ""
     wall_seconds: float = 0.0
+    params: dict[str, Any] = field(default_factory=dict)
+    """模型实际使用的参数（场景参数 + 覆盖项解析后的结果）。
+
+    供指标与实验层使用：指标口径依赖阈值等参数，而参数由模型解析，
+    实验层不应当自己再去猜一份。模型若不提供则为空字典，指标需自行处理缺失。
+    """
 
     @property
     def traj_hash(self) -> str:

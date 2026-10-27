@@ -47,7 +47,7 @@ single dynamics model or agent implementation.
 | Network modeling | `ba` / `er` / `ring` / `ws` / `sbm`, with optional stance-assortative rewiring | Available (see [assumptions](docs/topology-assumptions.md)) |
 | Opinion dynamics | A registered model is executed by the engine; the platform does not hard-code any single model | Available via the G3 baseline adapter |
 | Agent integration | Explicit interfaces for connecting external agent implementations | **Planned** — not yet implemented |
-| Experiment management | Configuration, seeds, run metadata | Partial (single runs; sweep/runner **planned**) |
+| Experiment management | Configuration, seeds, run metadata | Available: sweeps over configs × seeds, idempotent artefacts |
 | Result analysis | Trajectories, aggregate metrics, cross-condition differences | Partial (metrics computed; analysis layer **planned**) |
 | Reproducibility | Bit-exact regression against a reference dataset, environment and code snapshots | Available and verified |
 
@@ -91,13 +91,15 @@ at runtime** — no source is copied into the dynamics kernel, and no file in
                     engine/runner.py
                     (dispatch · timing · assembly)
                               |
-                    Experiment Runner        [planned]
+                    Experiment Runner
+                    experiments/ (sweep)
                               |
               +---------------+---------------+
               |                               |
         Data & Metrics                  Run Metadata
         RunOutput                   reproducibility.py
         traj_hash / network_hash    commit · deps · config
+        results.csv · manifest.json
               |                               |
               +---------------+---------------+
                               |
@@ -167,6 +169,18 @@ record = run_once(model, RunRequest(
 print(record.traj_hash, record.network_hash)
 ```
 
+### Run a sweep
+
+```bash
+uv run python -m odin_sim.cli sweep --config configs/sweep_example.json \
+    --out results/example --dry-run          # expand only
+uv run python -m odin_sim.cli sweep --config configs/sweep_example.json \
+    --out results/example --metrics all
+```
+
+Runs are content-addressed by `run_id`; re-running the same sweep skips completed
+runs, so a long sweep can be interrupted and resumed.
+
 ### Verify reproducibility
 
 ```bash
@@ -222,19 +236,21 @@ baseline. They are not scientific findings about opinion dynamics.</sub>
 - [x] Network generation: `ba`, `er`, `ring`, `ws`, `sbm`
 - [x] Protocol layer with an explicit registry for models, topologies, metrics
 - [x] Execution engine (dispatch, timing, artefact assembly)
+- [x] Batch experiment runner: sweeps over configurations × seeds
+- [x] Structured result storage (`manifest.json`, `results.csv`), resumable
 - [x] Controlled seeds and run metadata snapshots
 - [x] Automated tests and a bit-exact baseline regression
 - [x] Integration with the G3 baseline via a read-only runtime adapter
 
 **In progress**
 
-- [ ] Structured result storage and the analysis layer
-- [ ] Batch experiment runner (sweeps over configurations and seeds)
+- [ ] Analysis layer for stored results (aggregation, comparison, plots)
 
 **Planned**
 
 - [ ] Public integration interface for `odin-agents`
 - [ ] Platform-native opinion dynamics model (today only the adapter exists)
+- [ ] Paired control runs for metrics that require a same-seed control
 - [ ] Step-wise execution so external agents can act at each step
 - [ ] Performance profiling before optimising any hotspot
 - [ ] Interactive experiment visualisation
@@ -254,6 +270,7 @@ Chinese; the layering rules are described in [`docs/README.md`](docs/README.md).
 | [`docs/README.md`](docs/README.md) | Which documents ship with the repository and which do not, and why |
 | [`docs/architecture-v1.md`](docs/architecture-v1.md) | Architecture proposal v1 (draft) |
 | [`docs/topology-assumptions.md`](docs/topology-assumptions.md) | Parameters and RNG conventions assumed for `ws` / `sbm` — pending confirmation |
+| [`docs/experiments.md`](docs/experiments.md) | Experiment layer: config schema, `run_id` rules, storage decisions, limits |
 
 > **Project boundary.** ODIN-Sim and `odin-agents` are separate projects. This
 > repository does not contain `odin-agents` models, parameters, or research

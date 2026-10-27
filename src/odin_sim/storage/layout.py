@@ -7,12 +7,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__all__ = ["run_dir", "manifest_path", "timeseries_path", "final_state_path"]
+__all__ = [
+    "run_dir",
+    "manifest_path",
+    "timeseries_path",
+    "final_state_path",
+    "trajectory_path",
+    "sweep_manifest_path",
+    "results_csv_path",
+]
 
 RUNS_DIRNAME = "runs"
 MANIFEST_FILENAME = "manifest.json"
 TIMESERIES_FILENAME = "timeseries.csv"
 FINAL_STATE_FILENAME = "final_state.npz"
+TRAJECTORY_FILENAME = "trajectory.npz"
+SWEEP_MANIFEST_FILENAME = "sweep_manifest.json"
+RESULTS_FILENAME = "results.csv"
 
 
 def run_dir(root: str | Path, run_id: str) -> Path:
@@ -30,3 +41,18 @@ def timeseries_path(run: str | Path) -> Path:
 
 def final_state_path(run: str | Path) -> Path:
     return Path(run) / FINAL_STATE_FILENAME
+
+
+def trajectory_path(run: str | Path) -> Path:
+    """整条轨迹（可选产物，默认不写）。"""
+    return Path(run) / TRAJECTORY_FILENAME
+
+
+def sweep_manifest_path(root: str | Path) -> Path:
+    """一次 sweep 的汇总元信息：<root>/sweep_manifest.json。"""
+    return Path(root) / SWEEP_MANIFEST_FILENAME
+
+
+def results_csv_path(root: str | Path) -> Path:
+    """一次 sweep 的汇总表：<root>/results.csv。"""
+    return Path(root) / RESULTS_FILENAME

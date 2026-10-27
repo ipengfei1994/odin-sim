@@ -4,9 +4,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from . import __version__
 from .adapters.baseline_g3 import BaselineError, load_kernel
+from .experiments import (
+    SpecError,
+    SweepError,
+    expand_sweep,
+    run_sweep,
+    sweep_from_json,
+)
 from .reproducibility import snapshot
 from .verification import read_rows, verify_metric_rows, verify_rows
 
@@ -78,6 +86,51 @@ def _cmd_verify_metrics(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sweep(args: argparse.Namespace) -> int:
+    try:
+        spec = sweep_from_json(Path(args.config).read_text(encoding="utf-8"))
+    except (OSError, SpecError) as exc:
+        print(f"[error] 读取 sweep 配置失败：{exc}", file=sys.stderr)
+        return 2
+
+    try:
+        runs = expand_sweep(spec)
+    except SpecError as exc:
+        print(f"[error] 展开 sweep 失败：{exc}", file=sys.stderr)
+        return 2
+
+    if args.dry_run:
+        print(f"[sweep] name={spec.name} model={spec.model} "
+              f"fingerprint={spec.fingerprint}")
+        print(f"[sweep] runs={len(runs)}")
+        for run in runs[: args.show]:
+            print(f"  {run.run_id}  {run.config_id} seed={run.seed} "
+                  f"scenario={run.scenario} overrides={run.param_overrides}")
+        if len(runs) > args.show:
+            print(f"  ... 另有 {len(runs) - args.show} 条")
+        return 0
+
+    metrics = None
+    if args.metrics:
+        metrics = [m.strip() for m in args.metrics.split(",") if m.strip()]
+
+    try:
+        result = run_sweep(spec, out_root=args.out, metrics=metrics, echo=not args.quiet)
+    except SweepError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    print(f"[sweep] name={result.name} fingerprint={result.fingerprint}")
+    print(f"[sweep] total={result.total} executed={result.executed} "
+          f"skipped={result.skipped} failed={result.failed} "
+          f"aborted={result.aborted}")
+    if result.results_csv:
+        print(f"[sweep] results={result.results_csv}")
+    if result.sweep_manifest:
+        print(f"[sweep] manifest={result.sweep_manifest}")
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="odin-sim", description="ODIN-Sim 命令行入口")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -100,6 +153,17 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--limit", type=int, default=0, help="只校验前 N 行（0 表示全部）")
     m.add_argument("--show", type=int, default=10, help="最多打印多少条不一致详情")
 
+    s = sub.add_parser("sweep", help="按配置批量运行实验并落盘")
+    s.add_argument("--config", required=True, help="sweep 配置 JSON 路径")
+    s.add_argument("--out", default="results", help="产物根目录（默认 results）")
+    s.add_argument("--metrics", default=None,
+                   help="要计算的指标，逗号分隔；'all' 表示所有不需要对照的指标；"
+                        "缺省表示不计算指标")
+    s.add_argument("--dry-run", action="store_true",
+                   help="只展开并打印运行列表，不执行")
+    s.add_argument("--show", type=int, default=20, help="dry-run 最多打印多少条")
+    s.add_argument("--quiet", action="store_true", help="不打印逐条进度")
+
     return parser
 
 
@@ -111,6 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_verify_baseline(args)
     if args.command == "verify-metrics":
         return _cmd_verify_metrics(args)
+    if args.command == "sweep":
+        return _cmd_sweep(args)
     return 2
 
 

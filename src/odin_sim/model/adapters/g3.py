@@ -85,6 +85,7 @@ class G3Dynamics:
         )
         params = kernel.scenario_params(request.scenario, **request.param_overrides)
         res = kernel.simulate(cfg, request.seed, params)
+        params_payload = params.to_dict() if hasattr(params, "to_dict") else dict(params)
         return RunOutput(
             traj=res.traj,
             is_adv=res.is_adv,
@@ -94,6 +95,7 @@ class G3Dynamics:
             cost=res.cost,
             meta=res.meta,
             model_name=self.name,
+            params=params_payload,
         )
 
 

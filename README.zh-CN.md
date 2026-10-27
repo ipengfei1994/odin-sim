@@ -46,7 +46,7 @@ ODIN-Sim 是 **ODIN —— Opinion Dynamics with Intelligent-agent Networks**
 | 网络建模 | `ba` / `er` / `ring` / `ws` / `sbm`，可选立场同配重连 | 可用（见[假设登记](docs/topology-assumptions.md)） |
 | 意见动力学 | 由引擎执行已注册的模型；平台不写死任何一种模型 | 通过 G3 baseline 适配器可用 |
 | 智能体接入 | 为外部智能体实现提供显式接口 | **计划中**——尚未实现 |
-| 实验管理 | 配置、随机种子、运行元信息 | 部分可用（单次运行；批量扫描**计划中**） |
+| 实验管理 | 配置、随机种子、运行元信息 | 可用：在配置 × 种子上做批量扫描，产物幂等可续跑 |
 | 结果分析 | 轨迹、聚合指标、跨条件差异 | 部分可用（指标已计算；分析层**计划中**） |
 | 可复现性 | 针对参考数据集的逐位回归、环境与代码快照 | 可用且已验证 |
 
@@ -87,13 +87,15 @@ ODIN 把研究建模与执行基础设施分开：
                     engine/runner.py
                     (分发 · 计时 · 产物组装)
                               |
-                    Experiment Runner        [计划中]
+                    Experiment Runner
+                    experiments/（sweep）
                               |
               +---------------+---------------+
               |                               |
         Data & Metrics                  Run Metadata
         RunOutput                   reproducibility.py
         traj_hash / network_hash    commit · 依赖 · 配置
+        results.csv · manifest.json
               |                               |
               +---------------+---------------+
                               |
@@ -161,6 +163,18 @@ record = run_once(model, RunRequest(
 print(record.traj_hash, record.network_hash)
 ```
 
+### 跑一次批量实验（sweep）
+
+```bash
+uv run python -m odin_sim.cli sweep --config configs/sweep_example.json \
+    --out results/example --dry-run          # 只展开，不执行
+uv run python -m odin_sim.cli sweep --config configs/sweep_example.json \
+    --out results/example --metrics all
+```
+
+运行按 `run_id`（规格内容哈希）寻址，重复执行同一 sweep 会跳过已完成的运行，
+因此长扫描可以中断后续跑。
+
 ### 验证可复现性
 
 ```bash
@@ -213,19 +227,21 @@ uv run python -m odin_sim.cli verify-metrics \
 - [x] 网络生成：`ba`、`er`、`ring`、`ws`、`sbm`
 - [x] 协议层，以及模型 / 拓扑 / 指标的显式注册表
 - [x] 执行引擎（分发、计时、产物组装）
+- [x] 批量实验运行器：在配置 × 种子上做扫描
+- [x] 结构化结果存储（`manifest.json`、`results.csv`），支持断点续跑
 - [x] 受控随机种子与运行元信息快照
 - [x] 自动化测试与逐位 baseline 回归
 - [x] 通过只读运行期适配器接入 G3 baseline
 
 **进行中**
 
-- [ ] 结构化结果存储与分析层
-- [ ] 批量实验运行器（在配置与种子上做扫描）
+- [ ] 面向已存储结果的分析层（聚合、比较、绘图）
 
 **计划中**
 
 - [ ] 面向 `odin-agents` 的公开接入接口
 - [ ] 平台原生的意见动力学模型（目前只有适配器）
+- [ ] 需要同种子对照的指标，其对照配对机制
 - [ ] 逐步执行，使外部智能体能在每一步行动
 - [ ] 在优化任何热点之前先做性能剖析
 - [ ] 交互式实验可视化
@@ -243,6 +259,7 @@ uv run python -m odin_sim.cli verify-metrics \
 | [`docs/README.md`](docs/README.md) | 文档分层：哪些随仓库发布，哪些不发布及原因 |
 | [`docs/architecture-v1.md`](docs/architecture-v1.md) | 架构方案 v1（草案） |
 | [`docs/topology-assumptions.md`](docs/topology-assumptions.md) | `ws` / `sbm` 假设的参数与随机数约定——待确认 |
+| [`docs/experiments.md`](docs/experiments.md) | 实验层：配置 schema、`run_id` 规则、存储决策与限制 |
 
 ---
 
