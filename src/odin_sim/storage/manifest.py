@@ -52,13 +52,23 @@ def write_manifest(
     artifacts: Sequence[str] = (),
     status: str = STATUS_OK,
     error: Mapping[str, Any] | None = None,
+    role: str = "main",
+    control_run_id: str | None = None,
+    control_status: str = "none",
 ) -> Path:
-    """写单次运行的 manifest，返回文件路径。"""
+    """写单次运行的 manifest，返回文件路径。
+
+    ``role`` / ``control_*`` 描述本次 sweep 对这条运行的用法（主运行还是
+    对照、与谁配对），不属于运行规格本身，因此不进 ``spec``，也不影响 run_id。
+    """
     payload = {
         "manifest_version": MANIFEST_VERSION,
         "run_id": run_id,
         "status": status,
         "created_at": _now(),
+        "role": role,
+        "control_run_id": control_run_id,
+        "control_status": control_status,
         "spec": dict(spec),
         "model": dict(model),
         "result": dict(result),

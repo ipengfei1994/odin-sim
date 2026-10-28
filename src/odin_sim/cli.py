@@ -104,8 +104,10 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
               f"fingerprint={spec.fingerprint}")
         print(f"[sweep] runs={len(runs)}")
         for run in runs[: args.show]:
-            print(f"  {run.run_id}  {run.config_id} seed={run.seed} "
-                  f"scenario={run.scenario} overrides={run.param_overrides}")
+            tag = "control" if run.role == "control" else "main   "
+            pair = f" control={run.control_run_id}" if run.control_run_id else ""
+            print(f"  [{tag}] {run.run_id}  {run.config_id} seed={run.seed} "
+                  f"scenario={run.scenario} overrides={run.param_overrides}{pair}")
         if len(runs) > args.show:
             print(f"  ... 另有 {len(runs) - args.show} 条")
         return 0
@@ -157,7 +159,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--config", required=True, help="sweep 配置 JSON 路径")
     s.add_argument("--out", default="results", help="产物根目录（默认 results）")
     s.add_argument("--metrics", default=None,
-                   help="要计算的指标，逗号分隔；'all' 表示所有不需要对照的指标；"
+                   help="要计算的指标，逗号分隔；'all' 表示全部已注册指标"
+                        "（需要配对对照的指标只在配置 control 时才计算）；"
                         "缺省表示不计算指标")
     s.add_argument("--dry-run", action="store_true",
                    help="只展开并打印运行列表，不执行")

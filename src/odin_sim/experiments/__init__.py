@@ -11,10 +11,23 @@
 from __future__ import annotations
 
 from .runner import SweepError, SweepResult, run_sweep
-from .spec import RunSpec, SpecError, SweepSpec, expand_sweep, sweep_from_json
+from .spec import (
+    CONTROL_LINKED,
+    CONTROL_NONE,
+    CONTROL_SELF,
+    ROLE_CONTROL,
+    ROLE_MAIN,
+    ControlSpec,
+    RunSpec,
+    SpecError,
+    SweepSpec,
+    expand_sweep,
+    sweep_from_json,
+)
 
 __all__ = [
     "RunSpec",
+    "ControlSpec",
     "SweepSpec",
     "SpecError",
     "expand_sweep",
@@ -22,4 +35,9 @@ __all__ = [
     "run_sweep",
     "SweepResult",
     "SweepError",
+    "ROLE_MAIN",
+    "ROLE_CONTROL",
+    "CONTROL_NONE",
+    "CONTROL_SELF",
+    "CONTROL_LINKED",
 ]

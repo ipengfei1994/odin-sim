@@ -45,6 +45,10 @@ class Registry(Generic[T]):
     def has(self, name: str) -> bool:
         return name in self._items
 
+    def unregister(self, name: str) -> None:
+        """移除一个注册项。供测试与插件卸载使用；不存在时静默返回。"""
+        self._items.pop(name, None)
+
     def names(self) -> list[str]:
         return sorted(self._items)
 
