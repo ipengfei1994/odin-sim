@@ -19,7 +19,8 @@
 | sweep 汇总表 `results.csv` 与 `sweep_manifest.json` | 已实现 |
 | 不需要对照的指标计算 | 已实现 |
 | 需要同种子对照的指标（如反噬） | **已实现**：通过可配置 `ControlSpec`，口径由实验配置给定 |
-| 结果分析与可视化 | 未实现（后续阶段） |
+| 结果分析层（跨条件聚合 + 置信区间） | **已实现**：`analyze` 子命令，`odin_sim.analysis` |
+| 结果可视化（相图/曲线） | 未实现（后续阶段，依赖 `[analysis]` 可选组） |
 
 ## 2. 产物结构
 
@@ -121,8 +122,42 @@
    注意：跨 sweep 复用对照轨迹需开启 `store_trajectory`（或保证对照运行已落盘）。
 2. **无并行**：当前为顺序执行。`patched_baseline_topology` 是进程全局注入，
    并行会互相干扰，因此并行化必须先解决拓扑注入的隔离问题。
-3. **无结果分析层**：跨条件聚合、置信区间、相图均未在平台内实现。
-4. **未覆盖失败重试策略**：失败只记录，不自动重试。
-5. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
+3. **结果分析层 v1 已实现**：跨条件聚合与置信区间（`analyze` 子命令，纯 numpy，
+   不强制 `[analysis]` 依赖；CI 默认正态近似，装了 scipy 自动切 t 区间）。
+   更丰富的统计与**可视化（相图/曲线）**仍未实现，后者依赖 `[analysis]` 可选组。
+4. **无并行**：当前为顺序执行。`patched_baseline_topology` 是进程全局注入，
+   并行会互相干扰，因此并行化必须先解决拓扑注入的隔离问题。
+5. **未覆盖失败重试策略**：失败只记录，不自动重试。
+6. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
 
-下一步建议：**E-3 结果分析层**（跨条件聚合与相图），随后才是性能与并行。
+下一步建议：**可视化与更丰富统计**（相图/曲线，依赖 `[analysis]` 组），随后才是性能与并行。
+
+## 8. 分析层用法
+
+`analyze` 消费一次 sweep 产出的 `results.csv`，按分组键聚合数值指标并给出置信区间。
+不读模型、不跑仿真，是 `results.csv` 的纯函数，可复现。核心仅依赖 numpy；
+CI 默认正态近似（95% 对应 1.96×SEM），若环境装了 scipy 自动切换为 t 分布区间。
+
+```bash
+# 按 mode + beta_gov 分组，聚合反噬指标，打印到 stdout（CSV 格式）
+odin-sim analyze --sweep results \
+    --group-by mode beta_gov \
+    --metric g3.backfire.bf_final
+
+# 输出到文件，多指标、自定义置信度
+odin-sim analyze --sweep results \
+    --group-by topology.type scenario \
+    --metric g3.backfire.bf_final ord_extreme_final \
+    --confidence 0.95 --out agg.csv
+```
+
+输出每行一个分组，含分组键、`n`（组内总 run 数），以及每个指标的统计量：
+
+- **数值指标**：`<metric>.n / .mean / .std / .sem / .ci_low / .ci_high`
+  （`.n` 为该组内数值样本数）。
+- **布尔指标**（如是否反噬）：自动聚合成**发生率**
+  `<metric>.n / .n_true / .rate / .rate_ci_low / .rate_ci_high`
+  （`.n` 为该组内布尔样本数，只统计主运行等有值的行，对照行的空值不计入）。
+
+非数值且非布尔（纯文本）或全缺失的列，在该组记 `n=0` 且统计量为空，绝不编造。
+对照组（`role=control`）的 `requires_control` 指标为空，不会被计入主指标的发生率。

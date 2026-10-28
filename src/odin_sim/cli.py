@@ -15,6 +15,7 @@ from .experiments import (
     run_sweep,
     sweep_from_json,
 )
+from .analysis import aggregate, aggregate_to_csv, load_results
 from .reproducibility import snapshot
 from .verification import read_rows, verify_metric_rows, verify_rows
 
@@ -133,6 +134,38 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    results = load_results(args.sweep)
+    if not results:
+        print(f"[analyze] 未读到任何结果行：{args.sweep}/results.csv", file=sys.stderr)
+        return 2
+
+    rows = aggregate(results, args.group_by, args.metric, confidence=args.confidence)
+
+    if args.out:
+        path = aggregate_to_csv(
+            results, args.group_by, args.metric, args.out, confidence=args.confidence
+        )
+        print(f"[analyze] 分组数={len(rows)} 指标={list(args.metric)} -> {path}")
+        return 0
+
+    import csv
+    import io
+
+    fieldnames: list[str] = []
+    for r in rows:
+        for k in r:
+            if k not in fieldnames:
+                fieldnames.append(k)
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
+    print(buf.getvalue(), end="")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="odin-sim", description="ODIN-Sim 命令行入口")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -167,6 +200,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--show", type=int, default=20, help="dry-run 最多打印多少条")
     s.add_argument("--quiet", action="store_true", help="不打印逐条进度")
 
+    a = sub.add_parser("analyze", help="聚合 sweep 结果并给出置信区间")
+    a.add_argument("--sweep", default="results",
+                   help="sweep 产物根目录（含 results.csv），默认 results")
+    a.add_argument("--group-by", nargs="+", required=True,
+                   help="分组键，如 mode beta_gov")
+    a.add_argument("--metric", nargs="+", required=True,
+                   help="要聚合的指标列名，如 g3.backfire.bf_final")
+    a.add_argument("--confidence", type=float, default=0.95,
+                   help="CI 置信度，默认 0.95")
+    a.add_argument("--out", default=None,
+                   help="聚合结果输出 CSV；不指定则打印到 stdout（CSV 格式）")
+
     return parser
 
 
@@ -180,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_verify_metrics(args)
     if args.command == "sweep":
         return _cmd_sweep(args)
+    if args.command == "analyze":
+        return _cmd_analyze(args)
     return 2
 
 
