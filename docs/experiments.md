@@ -200,6 +200,8 @@ odin-sim plot --sweep results --x beta_gov --heatmap-y tau \
 
 - `--group-by` 默认由 `--x` / `--hue` / `--heatmap-y` 推导，可显式覆盖。
 - 未知列名一律报错并列出可用列，不静默画出一张空图。
+- 发生率类指标的纵轴下限夹到 0：某组发生率全为 0 时，matplotlib 会把轴自动放到
+  负刻度上，看上去像"负的发生率"。只夹下限，不动数值，也不替数据做判断。
 - 某组点估计全缺时跳过该组；全部缺失时直接报错，不产出无数据的坐标系。
 - `--out` 不指定时写到 `<sweep>/figures/<metric>_<kind>.png`。
 - 默认不使用中文字体（Linux CI 通常没有中文字体，硬写会渲染成豆腐块）：

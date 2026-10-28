@@ -168,6 +168,18 @@ def _sorted_points(
     return pts, numeric
 
 
+def _clamp_rate_axis(ax: Any, cols: MetricColumns) -> None:
+    """发生率天然落在 [0, 1]，但某组全为 0 时 matplotlib 会把轴自动放到
+    负刻度上（例如 -0.04~0.04），看上去像"负的发生率"。这里只夹住下限，
+    不动任何数值、不替数据做判断。数值指标不做处理——它的值域没有天然下界。
+    """
+    if not cols.is_rate:
+        return
+    low, high = ax.get_ylim()
+    if low < 0.0:
+        ax.set_ylim(0.0, high)
+
+
 def _opt(value: Any) -> float | None:
     if value is None:
         return None
@@ -257,6 +269,7 @@ def plot_curves(
         ax.set_title(title)
     if grid:
         ax.grid(True, alpha=0.3)
+    _clamp_rate_axis(ax, cols)
     return _finish(fig, out)
 
 
@@ -343,6 +356,7 @@ def plot_bars(
         ax.set_title(title)
     if grid:
         ax.grid(True, axis="y", alpha=0.3)
+    _clamp_rate_axis(ax, cols)
     return _finish(fig, out)
 
 

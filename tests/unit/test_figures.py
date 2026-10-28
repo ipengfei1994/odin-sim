@@ -173,6 +173,22 @@ def test_ci_values_are_not_recomputed():
         mpl.pyplot.close(fig)
 
 
+def test_rate_axis_never_goes_negative():
+    """发生率在 [0,1]：全为 0 时不能让 matplotlib 把纵轴自动放到负刻度。
+
+    只夹下限，不改数值——否则会让人以为存在"负的反噬发生率"。
+    """
+    rows = [{"mode": "cross", "beta_gov": 0.0, "flag": False} for _ in range(2)]
+    agg = aggregate(rows, ["mode", "beta_gov"], ["flag"])
+    assert agg[0]["flag.rate"] == 0.0
+    for fn in (plot_curves, plot_bars):
+        fig = fn(agg, x="beta_gov", metric="flag")
+    try:
+        assert fig.axes[0].get_ylim()[0] >= 0.0
+    finally:
+        mpl.pyplot.close(fig)
+
+
 def test_plot_raises_on_unknown_axis_column():
     rows = aggregate(_fake_results(), ["mode"], ["all_extreme_final"])
     with pytest.raises(KeyError, match="没有列"):
