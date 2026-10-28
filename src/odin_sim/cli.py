@@ -15,7 +15,8 @@ from .experiments import (
     run_sweep,
     sweep_from_json,
 )
-from .analysis import aggregate, aggregate_to_csv, load_results
+from .analysis import aggregate, aggregate_to_csv, filter_by_role, load_results
+from .analysis.figures import plot_bars, plot_curves, plot_heatmap
 from .reproducibility import snapshot
 from .verification import read_rows, verify_metric_rows, verify_rows
 
@@ -139,6 +140,10 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     if not results:
         print(f"[analyze] 未读到任何结果行：{args.sweep}/results.csv", file=sys.stderr)
         return 2
+    results = filter_by_role(results, args.role)
+    if not results:
+        print(f"[analyze] 按 role={args.role} 过滤后没有任何结果行", file=sys.stderr)
+        return 2
 
     rows = aggregate(results, args.group_by, args.metric, confidence=args.confidence)
 
@@ -163,6 +168,71 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
     for r in rows:
         writer.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
     print(buf.getvalue(), end="")
+    return 0
+
+
+def _plot_group_by(args: argparse.Namespace) -> list[str]:
+    """默认聚合维度：横轴 + 分组 +（热图的纵轴），去重保序。"""
+    keys = [args.x]
+    if args.hue:
+        keys.append(args.hue)
+    if args.kind == "heatmap" and args.heatmap_y:
+        keys.append(args.heatmap_y)
+    out: list[str] = []
+    for k in keys:
+        if k not in out:
+            out.append(k)
+    return out
+
+
+def _cmd_plot(args: argparse.Namespace) -> int:
+    results = load_results(args.sweep)
+    if not results:
+        print(f"[plot] 未读到任何结果行：{args.sweep}/results.csv", file=sys.stderr)
+        return 2
+    results = filter_by_role(results, args.role)
+    if not results:
+        print(f"[plot] 按 role={args.role} 过滤后没有任何结果行", file=sys.stderr)
+        return 2
+
+    group_by = list(args.group_by) if args.group_by else _plot_group_by(args)
+    # 未知列名一律报错，不静默聚成"一个空组"再画一张莫名其妙的图
+    available = set(results[0].keys())
+    missing = [k for k in [*group_by, args.metric] if k not in available]
+    if missing:
+        print(
+            f"[error] results.csv 中没有这些列：{missing}\n"
+            f"        可用列：{sorted(available)}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.kind == "heatmap" and not args.heatmap_y:
+        print("[error] kind=heatmap 需要 --heatmap-y 指定纵轴分组键", file=sys.stderr)
+        return 2
+
+    rows = aggregate(results, group_by, [args.metric], confidence=args.confidence)
+    out = args.out or str(Path(args.sweep) / "figures" / f"{args.metric}_{args.kind}.png")
+
+    try:
+        if args.kind == "heatmap":
+            plot_heatmap(rows, x=args.x, y=args.heatmap_y, metric=args.metric,
+                         out=out, title=args.title)
+        elif args.kind == "bar":
+            plot_bars(rows, x=args.x, metric=args.metric, hue=args.hue,
+                      out=out, title=args.title)
+        else:
+            plot_curves(rows, x=args.x, metric=args.metric, hue=args.hue,
+                        out=out, title=args.title)
+    except RuntimeError as exc:  # matplotlib 缺失等环境问题
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    except (KeyError, ValueError) as exc:  # 列名/空数据等业务错误
+        print(f"[error] {exc}", file=sys.stderr)
+        return 1
+
+    print(f"[plot] kind={args.kind} x={args.x} metric={args.metric} "
+          f"group_by={group_by} 分组数={len(rows)} -> {out}")
     return 0
 
 
@@ -209,8 +279,32 @@ def build_parser() -> argparse.ArgumentParser:
                    help="要聚合的指标列名，如 g3.backfire.bf_final")
     a.add_argument("--confidence", type=float, default=0.95,
                    help="CI 置信度，默认 0.95")
+    a.add_argument("--role", default="main", choices=["main", "control", "all"],
+                   help="只看哪种运行；配了对照时默认 main（对照是配对基线，不是实验条件）")
     a.add_argument("--out", default=None,
                    help="聚合结果输出 CSV；不指定则打印到 stdout（CSV 格式）")
+
+    p = sub.add_parser("plot", help="把 sweep 结果画成图（曲线 / 柱状 / 相图热图）")
+    p.add_argument("--sweep", default="results",
+                   help="sweep 产物根目录（含 results.csv），默认 results")
+    p.add_argument("--x", required=True, help="横轴分组键，如 beta_gov / mode / tau")
+    p.add_argument("--metric", required=True,
+                   help="纵轴指标列名，如 all_extreme_final")
+    p.add_argument("--kind", default="curve", choices=["curve", "bar", "heatmap"],
+                   help="图形类型，默认 curve")
+    p.add_argument("--hue", default=None,
+                   help="分组键（一个取值一条线/一组柱），如 mode")
+    p.add_argument("--heatmap-y", default=None,
+                   help="kind=heatmap 时的纵轴分组键，如 tau")
+    p.add_argument("--group-by", nargs="*", default=None,
+                   help="聚合分组键；默认由 x/hue/heatmap-y 推导")
+    p.add_argument("--confidence", type=float, default=0.95,
+                   help="CI 置信度，默认 0.95")
+    p.add_argument("--role", default="main", choices=["main", "control", "all"],
+                   help="只看哪种运行；配了对照时默认 main（对照是配对基线，不是实验条件）")
+    p.add_argument("--title", default=None, help="图标题")
+    p.add_argument("--out", default=None,
+                   help="输出图片路径；默认 <sweep>/figures/<metric>_<kind>.png")
 
     return parser
 
@@ -227,6 +321,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_sweep(args)
     if args.command == "analyze":
         return _cmd_analyze(args)
+    if args.command == "plot":
+        return _cmd_plot(args)
     return 2
 
 

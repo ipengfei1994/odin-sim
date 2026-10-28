@@ -242,18 +242,24 @@ baseline. They are not scientific findings about opinion dynamics.</sub>
 - [x] Automated tests and a bit-exact baseline regression
 - [x] Integration with the G3 baseline via a read-only runtime adapter
 
+- [x] Analysis layer for stored results: cross-condition aggregation with confidence
+  intervals (`analyze`)
+- [x] Paired control runs for metrics that require a same-seed control
+  (configurable `ControlSpec`)
+- [x] Static result plots: curves with CI bands, grouped bars, phase heatmaps (`plot`)
+
 **In progress**
 
-- [ ] Analysis layer for stored results (aggregation, comparison, plots)
+- [ ] Interactive experiment visualisation
+- [ ] Time-series summaries: opinion evolution over time is not yet persisted,
+      so "curves over time" need an agreed summary definition first
 
 **Planned**
 
 - [ ] Public integration interface for `odin-agents`
 - [ ] Platform-native opinion dynamics model (today only the adapter exists)
-- [ ] Paired control runs for metrics that require a same-seed control
 - [ ] Step-wise execution so external agents can act at each step
 - [ ] Performance profiling before optimising any hotspot
-- [ ] Interactive experiment visualisation
 
 The roadmap is provisional and will be refined as research requirements become
 clearer.

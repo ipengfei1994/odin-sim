@@ -19,18 +19,19 @@ from __future__ import annotations
 
 import csv
 import math
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Sequence
 
 import numpy as np
 
 from ..storage.manifest import read_results_csv
 
 __all__ = [
-    "load_results",
     "aggregate",
     "aggregate_to_csv",
     "estimate_ci",
+    "filter_by_role",
+    "load_results",
 ]
 
 
@@ -72,6 +73,25 @@ def _coerce_cell(value: str | None):
         return text
 
 
+def filter_by_role(results: Sequence[Mapping], role: str = "main") -> list[dict]:
+    """只保留指定 ``role`` 的行；数据里没有 ``role`` 列时原样返回。
+
+    配置了对照（``control``）的 sweep 会把对照运行也写进 results.csv，其
+    ``role`` 为 ``control``。对照是**配对的基线**而不是一个实验条件，混进跨条件
+    聚合会凭空多出几组看似存在的条件（例如同 beta_gov 下忽然出现第二条曲线），
+    而且不会被察觉。因此默认只看主运行。
+
+    ``role="all"`` 表示不过滤；没有 ``role`` 列的老产物同样原样返回（不报错，
+    因为那时本就无从区分）。
+    """
+    rows = list(results)
+    if role == "all" or not rows:
+        return rows
+    if not any("role" in r for r in rows):
+        return rows
+    return [r for r in rows if str(r.get("role", "")) == role]
+
+
 def estimate_ci(values: Sequence[float], confidence: float = 0.95) -> tuple[float, float]:
     """围绕均值给出 (ci_low, ci_high)。
 
@@ -95,7 +115,8 @@ def _critical(confidence: float, df: int) -> float:
         from scipy import stats
 
         return float(stats.t.ppf(1.0 - (1.0 - confidence) / 2.0, df=df))
-    except Exception:
+    except ImportError:
+        # scipy 是可选依赖：没装就用正态近似，不因此让聚合失败
         return {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence, 1.96)
 
 
@@ -105,7 +126,8 @@ def _z_for(confidence: float) -> float:
         from scipy import stats
 
         return float(stats.norm.ppf(1.0 - (1.0 - confidence) / 2.0))
-    except Exception:
+    except ImportError:
+        # 同上：scipy 缺失时退回正态近似的常用分位数
         return {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence, 1.96)
 
 
@@ -216,7 +238,7 @@ def aggregate_to_csv(
         if v is None:
             return ""
         if isinstance(v, float):
-            return "%.6g" % v
+            return f"{v:.6g}"
         return str(v)
 
     with path.open("w", encoding="utf-8", newline="") as fh:

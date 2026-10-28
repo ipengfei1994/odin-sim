@@ -5,7 +5,13 @@ from pathlib import Path
 
 import numpy as np
 
-from odin_sim.analysis import aggregate, aggregate_to_csv, estimate_ci, load_results
+from odin_sim.analysis import (
+    aggregate,
+    aggregate_to_csv,
+    estimate_ci,
+    filter_by_role,
+    load_results,
+)
 
 
 def _fake_results() -> list[dict]:
@@ -75,6 +81,50 @@ def test_load_results_coerces(tmp_path: Path):
     assert res[0]["flag"] is True
     assert res[1]["g3.backfire.bf_final"] is None
     assert res[1]["flag"] is False
+
+
+def test_filter_by_role_drops_control_rows():
+    """对照运行是配对基线，不是实验条件：默认聚合不能把它们混进来。"""
+    rows = [
+        {"role": "main", "beta_gov": 0.0, "v": 1.0},
+        {"role": "control", "beta_gov": 0.0, "v": 9.0},
+        {"role": "main", "beta_gov": 0.2, "v": 2.0},
+    ]
+    assert [r["v"] for r in filter_by_role(rows, "main")] == [1.0, 2.0]
+    assert [r["v"] for r in filter_by_role(rows, "control")] == [9.0]
+    assert len(filter_by_role(rows, "all")) == 3
+
+    # 混进来会把同条件的均值从 1.0 抬到 5.0 —— 这正是要防的事
+    polluted = aggregate(rows, ["beta_gov"], ["v"])
+    clean = aggregate(filter_by_role(rows, "main"), ["beta_gov"], ["v"])
+    assert polluted[0]["v.mean"] == 5.0
+    assert clean[0]["v.mean"] == 1.0
+
+
+def test_filter_by_role_without_role_column_is_passthrough():
+    rows = [{"beta_gov": 0.0, "v": 1.0}]
+    assert filter_by_role(rows, "main") == rows
+
+
+def test_cli_analyze_defaults_to_main_role(tmp_path, capsys):
+    csvp = tmp_path / "results.csv"
+    csvp.write_text(
+        "run_id,role,beta_gov,seed,v\n"
+        "m1,main,0.0,1,1.0\n"
+        "c1,control,0.0,1,9.0\n",
+        encoding="utf-8",
+    )
+    from odin_sim.cli import main
+
+    rc = main([
+        "analyze", "--sweep", str(tmp_path),
+        "--group-by", "beta_gov", "--metric", "v",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert len(out) == 2  # 表头 + 1 组（对照已被剔除）
+    assert "1.0" in out[1]
+    assert "5.0" not in out[1]
 
 
 def test_estimate_ci():

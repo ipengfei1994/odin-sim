@@ -19,8 +19,8 @@
 | sweep 汇总表 `results.csv` 与 `sweep_manifest.json` | 已实现 |
 | 不需要对照的指标计算 | 已实现 |
 | 需要同种子对照的指标（如反噬） | **已实现**：通过可配置 `ControlSpec`，口径由实验配置给定 |
-| 结果分析层（跨条件聚合 + 置信区间） | **已实现**：`analyze` 子命令，`odin_sim.analysis` |
-| 结果可视化（相图/曲线） | 未实现（后续阶段，依赖 `[analysis]` 可选组） |
+| 结果分析层（跨条件聚合 + 置信区间） | **已实现**：`analyze` 子命令，`odin_sim.analysis.aggregate`（仅 numpy） |
+| 结果可视化（曲线 / 柱状 / 相图热图） | **已实现**：`plot` 子命令，`odin_sim.analysis.figures`（依赖 `[analysis]` 可选组） |
 
 ## 2. 产物结构
 
@@ -93,6 +93,7 @@
 | D-9 | 对照口径**由配置给出，平台不内置** | "无治理"与"治理失效"是不同的对照，取决于研究问题；平台提供通用变换机制（`overrides`+`seed`+`apply_to`）与记录，口径随实验走 | 已实现 |
 | D-7 | 失败也写 manifest（`status=error`） | 不留"看起来跑过"的空目录；下次续跑会重试 | 已实现 |
 | D-8 | `on_error` 默认 `abort` | 科学正确性优先：一次失败可能意味着实现或配置有问题，静默继续会污染整批结果 | 已实现 |
+| D-10 | 跨条件聚合与画图**默认只看 `role=main`**；要含对照需显式 `--role all` | 对照是配对基线而非实验条件。配了 `control` 的 sweep 会把对照行也写进 results.csv，混进来既会平移均值，也会在数据重合处造成重复计数、把 CI 虚假收窄（伪重复）。实测见 §6 | 已实现 |
 
 ## 5. 接口变更（需要知会）
 
@@ -114,6 +115,9 @@
 | G3 回归：配置 `control`（mode=none 同种子）后 `g3.backfire` | 主运行真正配对计算；对照运行自身不计算；对照轨迹强制落盘 |
 | 单元测试：对照配对机制（假模型，13 passed） | 覆盖派生/种子/适用范围/自指/重跑复用 |
 | CLI 端到端（2 条运行 + 指标） | 首次 executed=2；复跑 skipped=2 |
+| 单元测试：分析层 7 passed + 可视化层 17 passed | 数值/发生率口径、角色过滤、图上取值等于聚合值（不重算 CI）、缺数据时报错而非画空图 |
+| G3 端到端：β_gov(3)×tau(2)×种子(3)×对照 = 36 run → 三种图 | 曲线（CI 带）/柱状（发生率）/相图热图均产出，标注与 colorbar 正常 |
+| G3 实测：`--role main` vs `--role all` | β_gov=0.1 均值 0.495→0.601、std 0.038→0.114；β_gov=0.0 均值不变但 CI 宽度 0.031→0.018（重复计数造成的虚假收窄） |
 
 ## 7. 限制与下一步
 
@@ -124,13 +128,18 @@
    并行会互相干扰，因此并行化必须先解决拓扑注入的隔离问题。
 3. **结果分析层 v1 已实现**：跨条件聚合与置信区间（`analyze` 子命令，纯 numpy，
    不强制 `[analysis]` 依赖；CI 默认正态近似，装了 scipy 自动切 t 区间）。
-   更丰富的统计与**可视化（相图/曲线）**仍未实现，后者依赖 `[analysis]` 可选组。
-4. **无并行**：当前为顺序执行。`patched_baseline_topology` 是进程全局注入，
+4. **结果可视化 v1 已实现**：曲线（CI 带）/ 柱状（误差棒）/ 相图热图，`plot` 子命令，
+   依赖 `[analysis]` 可选组；渲染层只读聚合结果，不重算统计量。
+5. **无时间序列图**：`trajectory.npz` 只存 `traj/is_adv/is_gov`，中间序列未落盘。
+   要把"随时间演化"的曲线画出来，得先定义"对 traj 取哪个摘要"——这是模型相关的
+   研究口径，平台不替模型编造，故暂未提供。
+6. **无并行**：当前为顺序执行。`patched_baseline_topology` 是进程全局注入，
    并行会互相干扰，因此并行化必须先解决拓扑注入的隔离问题。
-5. **未覆盖失败重试策略**：失败只记录，不自动重试。
-6. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
+7. **未覆盖失败重试策略**：失败只记录，不自动重试。
+8. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
 
-下一步建议：**可视化与更丰富统计**（相图/曲线，依赖 `[analysis]` 组），随后才是性能与并行。
+下一步建议：**性能与并行**（先把 `patched_baseline_topology` 的进程全局注入隔离掉），
+或与课题组确认时间序列摘要口径后再补序列落盘。
 
 ## 8. 分析层用法
 
@@ -160,4 +169,38 @@ odin-sim analyze --sweep results \
   （`.n` 为该组内布尔样本数，只统计主运行等有值的行，对照行的空值不计入）。
 
 非数值且非布尔（纯文本）或全缺失的列，在该组记 `n=0` 且统计量为空，绝不编造。
-对照组（`role=control`）的 `requires_control` 指标为空，不会被计入主指标的发生率。
+
+**角色过滤（重要）**：配了 `control` 的 sweep 会把对照运行也写进 `results.csv`
+（`role=control`）。`analyze` / `plot` **默认只聚合 `role=main`**，要含对照必须显式
+`--role all`，要只看对照用 `--role control`（理由见 D-10 与 §6 实测）。
+没有 `role` 列的老产物原样返回，不报错——那时本就无从区分。
+
+## 9. 可视化用法
+
+`plot` 先按给定维度聚合并取 CI，再把**聚合好的值**画出来。渲染层不做任何统计推断，
+因此图上的点与区间必然等于 `analyze` 表里的 `<metric>.mean / .ci_low / .ci_high`
+（发生率类指标走 `.rate / .rate_ci_*`），图与表不会各说一套。
+
+依赖 matplotlib（属 `[analysis]` 可选组）：`uv sync --extra analysis`。
+未安装时给出明确引导，而不是在 import 期崩掉——免得没装可选依赖的人连纯 numpy 的
+`analyze` 都用不了。
+
+```bash
+# 曲线：横轴 beta_gov，纵轴极端化末值，按 tau 分组，阴影是 95% CI
+odin-sim plot --sweep results --x beta_gov --metric all_extreme_final --hue tau
+
+# 柱状：反噬发生率（布尔指标自动折算成率），误差棒取自 CI（非对称）
+odin-sim plot --sweep results --x beta_gov --metric g3.backfire.bf_final \
+    --kind bar --hue tau
+
+# 相图：两参数张成平面，单元格颜色是聚合值，缺失组合留白不插值
+odin-sim plot --sweep results --x beta_gov --heatmap-y tau \
+    --metric all_extreme_final --kind heatmap
+```
+
+- `--group-by` 默认由 `--x` / `--hue` / `--heatmap-y` 推导，可显式覆盖。
+- 未知列名一律报错并列出可用列，不静默画出一张空图。
+- 某组点估计全缺时跳过该组；全部缺失时直接报错，不产出无数据的坐标系。
+- `--out` 不指定时写到 `<sweep>/figures/<metric>_<kind>.png`。
+- 默认不使用中文字体（Linux CI 通常没有中文字体，硬写会渲染成豆腐块）：
+  轴标签取列名，`--title` 由调用方自传。
