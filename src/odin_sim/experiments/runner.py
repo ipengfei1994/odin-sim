@@ -42,6 +42,7 @@ from ..storage.manifest import (
     write_manifest,
     write_results_csv,
     write_sweep_manifest,
+    write_timeseries_csv,
 )
 from .spec import (
     CONTROL_LINKED,
@@ -238,6 +239,9 @@ def _execute(
         "series_final_all": _series_tail(output.series_all),
         "cost": dict(output.cost or {}),
         "capabilities": dict(record.capabilities),
+        # 模型解析后的实际参数（含场景阈值）。复算任何依赖参数的派生量都必须
+        # 用它，不能依赖默认值——默认值会随模型版本变化而静默改变结果。
+        "params": dict(output.params or {}),
     }
     return (
         {
@@ -304,17 +308,21 @@ def run_sweep(
         rd = layout.run_dir(root, run.run_id)
         existing = read_manifest(rd)
 
-        if existing is not None and existing.get("status") == STATUS_OK:
-            if existing.get("spec") == run.to_dict():
-                artifacts_ok = True
-                if spec.store_trajectory:
-                    artifacts_ok = layout.trajectory_path(rd).is_file()
-                if artifacts_ok:
-                    result.skipped += 1
-                    result.rows.append(_row_from_manifest(existing))
-                    if echo:
-                        print(f"[sweep] {index}/{result.total} skip {run.run_id}")
-                    continue
+        if (
+            existing is not None
+            and existing.get("status") == STATUS_OK
+            and existing.get("spec") == run.to_dict()
+        ):
+            # 时间序列是"必存"产物（体积小、画图依赖它）；轨迹按开关决定。
+            artifacts_ok = layout.timeseries_path(rd).is_file()
+            if artifacts_ok and spec.store_trajectory:
+                artifacts_ok = layout.trajectory_path(rd).is_file()
+            if artifacts_ok:
+                result.skipped += 1
+                result.rows.append(_row_from_manifest(existing))
+                if echo:
+                    print(f"[sweep] {index}/{result.total} skip {run.run_id}")
+                continue
 
         try:
             payload, skipped, artifacts = _execute(
@@ -372,6 +380,13 @@ def run_sweep(
             traj_cache[run.run_id] = output.traj
 
         all_skipped = list(skipped_metrics) + skipped
+        ts_path = write_timeseries_csv(
+            rd,
+            series_ord=output.series_ord,
+            series_all=output.series_all,
+        )
+        if ts_path is not None and layout.TIMESERIES_FILENAME not in payload["artifacts"]:
+            payload["artifacts"].append(layout.TIMESERIES_FILENAME)
         write_manifest(
             rd,
             run_id=run.run_id,

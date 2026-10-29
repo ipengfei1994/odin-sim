@@ -103,7 +103,7 @@ at runtime** — no source is copied into the dynamics kernel, and no file in
               |                               |
               +---------------+---------------+
                               |
-                     Analysis & Plots        [planned]
+                     Analysis & Plots        [available]
 ```
 
 The layering rule is one-directional: the engine depends only on the **protocol**
@@ -247,12 +247,7 @@ baseline. They are not scientific findings about opinion dynamics.</sub>
 - [x] Paired control runs for metrics that require a same-seed control
   (configurable `ControlSpec`)
 - [x] Static result plots: curves with CI bands, grouped bars, phase heatmaps (`plot`)
-
-**In progress**
-
-- [ ] Interactive experiment visualisation
-- [ ] Time-series summaries: opinion evolution over time is not yet persisted,
-      so "curves over time" need an agreed summary definition first
+- [x] Time-series persistence and evolution curves with CI bands (`curves`)
 
 **Planned**
 

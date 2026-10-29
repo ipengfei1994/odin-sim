@@ -619,11 +619,13 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+ui = [
+    { name = "plotly" },
+    { name = "streamlit" },
+]
 web = [
     { name = "fastapi" },
-    { name = "plotly" },
     { name = "pydantic" },
-    { name = "streamlit" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -635,16 +637,16 @@ requires-dist = [
     { name = "networkx", marker = "extra == 'analysis'", specifier = ">=3.4,<4.0" },
     { name = "numpy", specifier = "==2.3.4" },
     { name = "pandas", marker = "extra == 'analysis'", specifier = ">=2.2,<4.0" },
-    { name = "plotly", marker = "extra == 'web'", specifier = ">=5.24,<7.0" },
+    { name = "plotly", marker = "extra == 'ui'", specifier = ">=5.24,<7.0" },
     { name = "pydantic", marker = "extra == 'web'", specifier = ">=2.9,<3.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0,<9.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0,<8.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8,<1.0" },
     { name = "scipy", marker = "extra == 'analysis'", specifier = ">=1.14,<2.0" },
-    { name = "streamlit", marker = "extra == 'web'", specifier = ">=1.40,<2.0" },
+    { name = "streamlit", marker = "extra == 'ui'", specifier = ">=1.40,<2.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'web'", specifier = ">=0.30,<1.0" },
 ]
-provides-extras = ["dev", "analysis", "web"]
+provides-extras = ["dev", "analysis", "ui", "web"]
 
 [[package]]
 name = "opentelemetry-api"

@@ -8,6 +8,16 @@ from pathlib import Path
 
 from . import __version__
 from .adapters.baseline_g3 import BaselineError, load_kernel
+from .analysis import (
+    aggregate,
+    aggregate_timeseries,
+    aggregate_to_csv,
+    filter_by_role,
+    load_results,
+    load_run_series,
+    timeseries_to_csv,
+)
+from .analysis.figures import plot_bars, plot_curves, plot_heatmap, plot_timeseries
 from .experiments import (
     SpecError,
     SweepError,
@@ -15,8 +25,6 @@ from .experiments import (
     run_sweep,
     sweep_from_json,
 )
-from .analysis import aggregate, aggregate_to_csv, filter_by_role, load_results
-from .analysis.figures import plot_bars, plot_curves, plot_heatmap
 from .reproducibility import snapshot
 from .verification import read_rows, verify_metric_rows, verify_rows
 
@@ -306,7 +314,90 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default=None,
                    help="输出图片路径；默认 <sweep>/figures/<metric>_<kind>.png")
 
+    c = sub.add_parser("curves",
+                       help="把 sweep 的逐时间步序列画成带置信带的演化曲线")
+    c.add_argument("--sweep", default="results",
+                   help="sweep 产物根目录（读 runs/<run_id>/timeseries.csv），默认 results")
+    c.add_argument("--group-by", nargs="*", default=[],
+                   help="分组键，如 beta_gov mode；留空表示所有运行并成一条曲线")
+    c.add_argument("--column", nargs="*", default=None,
+                   help="序列列名，如 ord_extreme all_joint；留空表示全部可用列")
+    c.add_argument("--confidence", type=float, default=0.95,
+                   help="CI 置信度，默认 0.95")
+    c.add_argument("--role", default="main", choices=["main", "control", "all"],
+                   help="只看哪种运行；配了对照时默认 main（对照是配对基线，不是实验条件）")
+    c.add_argument("--title", default=None, help="图标题")
+    c.add_argument("--out", default=None,
+                   help="输出图片路径；默认 <sweep>/figures/timeseries.png")
+    c.add_argument("--csv", default=None, help="同时导出长表 CSV（每个时间点一行）")
+
+    u = sub.add_parser("ui", help="启动 Streamlit Web UI（需安装 [ui] 依赖）")
+    u.add_argument("--host", default=None,
+                   help="绑定主机（默认 streamlit 用 localhost）")
+    u.add_argument("--port", type=int, default=None, help="端口（默认 8501）")
+    u.add_argument("--no-browser", action="store_true",
+                   help="不自动打开浏览器（适合无头/远程服务器）")
+
     return parser
+
+
+def _cmd_curves(args: argparse.Namespace) -> int:
+    records = load_run_series(args.sweep, role=args.role)
+    if not records:
+        print(
+            f"[curves] 未读到任何时间序列：{args.sweep}/runs/*/timeseries.csv\n"
+            "        若这批产物是在本版本之前生成的，重跑 sweep 即可补写该文件。",
+            file=sys.stderr,
+        )
+        return 2
+
+    rows = aggregate_timeseries(
+        records, args.group_by, args.column, confidence=args.confidence
+    )
+    if not rows:
+        print("[curves] 聚合结果为空", file=sys.stderr)
+        return 2
+
+    if args.csv:
+        columns = args.column or sorted(
+            k[: -len(".mean")] for k in rows[0] if k.endswith(".mean")
+        )
+        csv_path = timeseries_to_csv(rows, args.csv, columns)
+        print(f"[curves] 长表：{csv_path}")
+
+    name = args.column[0] if args.column else "timeseries"
+    out = args.out or str(Path(args.sweep) / "figures" / f"{name}.png")
+    plot_timeseries(rows, args.column, title=args.title, out=out)
+    print(f"[curves] 组数={len(rows)} 图：{out}")
+    return 0
+
+
+def _cmd_ui(args: argparse.Namespace) -> int:
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    # 按路径定位 app.py，避免核心/接口层 import ``odin_sim.ui``
+    # （L4 分层不变量：见 docs/architecture-v1.md §4.3）。
+    app_path = Path(__file__).resolve().parent / "ui" / "app.py"
+
+    cmd = [
+        sys.executable, "-m", "streamlit", "run", str(app_path),
+        "--server.headless", "true" if args.no_browser else "false",
+        "--browser.gatherUsageStats", "false",
+    ]
+    if args.host:
+        cmd += ["--server.address", args.host]
+    if args.port:
+        cmd += ["--server.port", str(args.port)]
+    try:
+        return subprocess.call(cmd)
+    except FileNotFoundError:
+        print(
+            "[error] 未找到 streamlit；请先安装 UI 依赖：uv sync --extra ui",
+            file=sys.stderr,
+        )
+        return 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -323,6 +414,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_analyze(args)
     if args.command == "plot":
         return _cmd_plot(args)
+    if args.command == "curves":
+        return _cmd_curves(args)
+    if args.command == "ui":
+        return _cmd_ui(args)
     return 2
 
 

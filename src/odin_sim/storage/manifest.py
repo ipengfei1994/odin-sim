@@ -17,17 +17,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from .layout import manifest_path, results_csv_path, run_dir, sweep_manifest_path
+import numpy as np
+
+from .layout import (
+    manifest_path,
+    results_csv_path,
+    run_dir,
+    sweep_manifest_path,
+    timeseries_path,
+)
 
 __all__ = [
     "MANIFEST_VERSION",
-    "STATUS_OK",
     "STATUS_ERROR",
-    "write_manifest",
+    "STATUS_OK",
     "read_manifest",
-    "write_results_csv",
     "read_results_csv",
+    "read_timeseries_csv",
+    "write_manifest",
+    "write_results_csv",
     "write_sweep_manifest",
+    "write_timeseries_csv",
 ]
 
 MANIFEST_VERSION = "odin-sim-manifest-v1"
@@ -101,6 +111,77 @@ def read_manifest(run_dir_path: str | Path) -> dict[str, Any] | None:
     if payload.get("manifest_version") != MANIFEST_VERSION:
         return None
     return dict(payload)
+
+
+STEP_COLUMN = "step"
+"""时间序列 CSV 的时间步列名。"""
+
+
+def write_timeseries_csv(
+    run_dir_path: str | Path,
+    *,
+    series_ord: Mapping[str, Any],
+    series_all: Mapping[str, Any],
+) -> Path | None:
+    """写逐时间步序列，列为 ``step, ord_<key>..., all_<key>...``。
+
+    两组含义与 manifest 里的 ``series_final_ord`` / ``series_final_all`` 一致，
+    这里存的是**整条曲线**而非末值。
+
+    设计约束
+    --------
+    1. **不截断精度**：不复用 ``_fmt_cell``（``%.6g`` 会丢精度）。末值必须与
+       manifest 里已存的 ``series_final_*`` 精确相等，这是时间序列的正确性锚点。
+    2. **长度必须一致**：各条序列属于同一次运行的同一条时间轴，长度不同说明
+       模型内部不一致，报出来而不是对齐到最短。
+    3. 序列为空（模型不提供）时不写文件——不留空表冒充有数据。
+    """
+    ord_arrays = {k: np.asarray(v).ravel() for k, v in series_ord.items()}
+    all_arrays = {k: np.asarray(v).ravel() for k, v in series_all.items()}
+    if not ord_arrays and not all_arrays:
+        return None
+
+    sizes = {arr.size for arr in (*ord_arrays.values(), *all_arrays.values())}
+    if len(sizes) != 1:
+        detail = ", ".join(f"{k}={a.size}" for k, a in (*ord_arrays.items(), *all_arrays.items()))
+        raise ValueError(f"各时间序列长度不一致，无法对齐：{detail}")
+    n_steps = sizes.pop()
+
+    path = timeseries_path(run_dir_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = (
+        [STEP_COLUMN]
+        + [f"ord_{k}" for k in ord_arrays]
+        + [f"all_{k}" for k in all_arrays]
+    )
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        writer.writeheader()
+        for t in range(n_steps):
+            row: dict[str, Any] = {STEP_COLUMN: t}
+            for key, arr in ord_arrays.items():
+                row[f"ord_{key}"] = float(arr[t])
+            for key, arr in all_arrays.items():
+                row[f"all_{key}"] = float(arr[t])
+            writer.writerow(row)
+    return path
+
+
+def read_timeseries_csv(run_dir_path: str | Path) -> dict[str, Any] | None:
+    """读时间序列；文件不存在或为空返回 None。"""
+    path = timeseries_path(run_dir_path)
+    if not path.is_file():
+        return None
+    with path.open("r", encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        return None
+
+    columns = [c for c in rows[0] if c != STEP_COLUMN]
+    out: dict[str, Any] = {STEP_COLUMN: np.array([int(r[STEP_COLUMN]) for r in rows])}
+    for col in columns:
+        out[col] = np.array([float(r[col]) for r in rows], dtype=float)
+    return out
 
 
 def write_sweep_manifest(root: str | Path, payload: Mapping[str, Any]) -> Path:

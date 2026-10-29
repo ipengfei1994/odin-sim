@@ -9,6 +9,7 @@ odin-agents 的模型、参数与研究结论不属于本仓库，不入版本�
 |---|---|
 | [`architecture-v1.md`](architecture-v1.md) | 架构方案 v1（草案）：职责边界、模块划分、数据流、实现路线比较 |
 | [`experiments.md`](experiments.md) | 实验层：配置 schema、`run_id` 与续跑规则、存储决策、已知限制 |
+| [`ui-plan.md`](ui-plan.md) | UI 规划（L4 接口层）：Streamlit 起步的技术选型、模块结构、数据契约、分期与验收标准 |
 | [`topology-assumptions.md`](topology-assumptions.md) | `ws` / `sbm` 的参数与随机数约定，状态为**待确认假设** |
 
 ## 不在版本控制内（本地保留）

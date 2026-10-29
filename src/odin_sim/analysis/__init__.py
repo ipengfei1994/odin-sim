@@ -23,18 +23,28 @@ from .figures import (
     plot_bars,
     plot_curves,
     plot_heatmap,
+    plot_timeseries,
     resolve_metric_columns,
+)
+from .timeseries import (
+    aggregate_timeseries,
+    load_run_series,
+    timeseries_to_csv,
 )
 
 __all__ = [
     "MetricColumns",
     "aggregate",
+    "aggregate_timeseries",
     "aggregate_to_csv",
     "estimate_ci",
     "filter_by_role",
     "load_results",
+    "load_run_series",
     "plot_bars",
     "plot_curves",
     "plot_heatmap",
+    "plot_timeseries",
     "resolve_metric_columns",
+    "timeseries_to_csv",
 ]

@@ -21,6 +21,7 @@
 | 需要同种子对照的指标（如反噬） | **已实现**：通过可配置 `ControlSpec`，口径由实验配置给定 |
 | 结果分析层（跨条件聚合 + 置信区间） | **已实现**：`analyze` 子命令，`odin_sim.analysis.aggregate`（仅 numpy） |
 | 结果可视化（曲线 / 柱状 / 相图热图） | **已实现**：`plot` 子命令，`odin_sim.analysis.figures`（依赖 `[analysis]` 可选组） |
+| 时间序列（逐时间步序列 + 演化曲线） | **已实现**：产物 `timeseries.csv`，`curves` 子命令，`odin_sim.analysis.timeseries` |
 
 ## 2. 产物结构
 
@@ -113,6 +114,8 @@
 | G3 回归：重跑同一 sweep | `executed=0, skipped=N`，汇总行哈希不变 |
 | G3 回归：`requires_control` 指标（未配置 control） | 被跳过且写入 `skipped_metrics`，未出现在结果表 |
 | G3 回归：配置 `control`（mode=none 同种子）后 `g3.backfire` | 主运行真正配对计算；对照运行自身不计算；对照轨迹强制落盘 |
+| G3 回归：时间序列末点 vs manifest `series_final_*` | **精确相等**（非近似）——正确性锚点见 §10 |
+| G3 回归：重跑已含时间序列的 sweep | `executed=0`，不重复劳动 |
 | 单元测试：对照配对机制（假模型，13 passed） | 覆盖派生/种子/适用范围/自指/重跑复用 |
 | CLI 端到端（2 条运行 + 指标） | 首次 executed=2；复跑 skipped=2 |
 | 单元测试：分析层 7 passed + 可视化层 17 passed | 数值/发生率口径、角色过滤、图上取值等于聚合值（不重算 CI）、缺数据时报错而非画空图 |
@@ -130,16 +133,18 @@
    不强制 `[analysis]` 依赖；CI 默认正态近似，装了 scipy 自动切 t 区间）。
 4. **结果可视化 v1 已实现**：曲线（CI 带）/ 柱状（误差棒）/ 相图热图，`plot` 子命令，
    依赖 `[analysis]` 可选组；渲染层只读聚合结果，不重算统计量。
-5. **无时间序列图**：`trajectory.npz` 只存 `traj/is_adv/is_gov`，中间序列未落盘。
-   要把"随时间演化"的曲线画出来，得先定义"对 traj 取哪个摘要"——这是模型相关的
-   研究口径，平台不替模型编造，故暂未提供。
-6. **无并行**：当前为顺序执行。`patched_baseline_topology` 是进程全局注入，
-   并行会互相干扰，因此并行化必须先解决拓扑注入的隔离问题。
-7. **未覆盖失败重试策略**：失败只记录，不自动重试。
-8. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
+5. **时间序列已实现**：每次运行都把模型的逐时间步序列落成
+   `runs/<run_id>/timeseries.csv`（约 5 KB，无需开 `store_trajectory`），
+   `curves` 子命令跨种子聚合并画出带 CI 的演化曲线。
+   此前文档称"中间序列未落盘、需先定义摘要口径"——这个判断已更正：模型本来
+   产出的就是**整条序列**（`RunOutput.series_ord` / `series_all` 均为完整数组），
+   是平台取了末值后把曲线丢掉了；摘要口径也早已存在且由模型定义，无需平台编造。
+   见 §10。
+6. **未覆盖失败重试策略**：失败只记录，不自动重试。
+7. **未做大规模性能测量**：单条耗时已写入 `wall_seconds`，但尚未做规模扫描。
 
-下一步建议：**性能与并行**（先把 `patched_baseline_topology` 的进程全局注入隔离掉），
-或与课题组确认时间序列摘要口径后再补序列落盘。
+下一步建议：**并行化**（先把 `patched_baseline_topology` 的进程全局注入隔离掉），
+或等既有 G3 试验跑出阶段性结论后，再据实重估内核解耦的时机（见 §11）。
 
 ## 8. 分析层用法
 
@@ -206,3 +211,62 @@ odin-sim plot --sweep results --x beta_gov --heatmap-y tau \
 - `--out` 不指定时写到 `<sweep>/figures/<metric>_<kind>.png`。
 - 默认不使用中文字体（Linux CI 通常没有中文字体，硬写会渲染成豆腐块）：
   轴标签取列名，`--title` 由调用方自传。
+
+## 10. 时间序列用法
+
+每次运行除了**终值**，还会把模型的**整条序列**落成
+`runs/<run_id>/timeseries.csv`（列：`step, ord_<key>..., all_<key>...`）。
+序列只有几百行 × 几列（约 5 KB），因此**总是写入**，不像 1.2 MB 的
+`trajectory.npz` 需要开 `store_trajectory` 开关。
+
+口径归属：**序列怎么算，由模型决定**（例如"极端"的阈值 `tau_ext` 属于场景参数，
+随 params 一起落盘）。平台只做读、对齐、跨种子聚合与渲染，不重新解释轨迹，
+也不复制任何模型的公式。
+
+```bash
+# 每个列一个子图，每条分组线一条曲线 + 95% 置信带
+odin-sim curves --sweep results --group-by beta_gov \
+    --column ord_extreme all_extreme --title "Extreme share over time"
+
+# 同时导出长表 CSV（每个时间点一行），便于 pandas / R / Excel 直接读
+odin-sim curves --sweep results --group-by beta_gov mode \
+    --column ord_joint --csv curves.csv
+```
+
+约定与边界：
+
+- **不截断精度**：写入时不用 `%.6g` 一类格式化。末点必须与 manifest 里的
+  `series_final_*` **精确相等**——这两个值来源不同，等号一旦断就说明序列错位或
+  精度丢失。这条关系已固化为回归测试，不靠肉眼判断图对不对。
+- **角色过滤**：默认只看 `role=main`（与 `analyze` / `plot` 一致，理由见 D-10）。
+- **比例量的 CI 留在 `[0,1]`**：极端化占比这类量的真值域是 `[0,1]`，正态/t 近似
+  在接近边界时会算出负下界（实测出现过 `-0.008`），那是近似方法的伪影，故沿袭
+  `aggregate._proportion_ci` 的约定裁掉越界部分。
+  判定方式按列值域启发式：全部取值落在 `[0,1]` 才裁剪，结果记在
+  `<col>.proportion` 里如实标注——这是我方的启发式，不是模型的语义声明。
+- **长度必须对齐**：同一分组内各 run 的时间步数不同时报错并指出是哪个 run，
+  不对齐到最短。
+- 老产物没有 `timeseries.csv`：续跑时会判定为未完成并重跑；`curves` 遇到时给出
+  明确提示而不是画出半张图。
+- 缺 `timeseries.csv` 的运行在加载时跳过（例如失败的运行）。
+
+## 11. 待定：内核解耦的时机
+
+`RunRequest` / `RunOutput` / `MetricContext` 目前写死了若干 G3 概念
+（`mode` / `placement` / `beta_gov` / `tau` / `is_adv` / `is_gov` / `series_*` /
+`cost`，`config_id` 直接用 G3 命名格式）。要在平台内注册**非 G3** 的动力学模型，
+得先把这些字段下沉为模型自述内容。
+
+已量化的现状（不是推测）：这些字段的类型声明集中在 `model/protocol.py` 一处，
+其余模块只是搬运；`analysis` 与 `cli` 里出现的 `beta_gov` 全部是文档串与帮助
+文本示例，不构成类型耦合。因此这件事不难，也不会随时间指数恶化。
+
+暂不实施，理由是**抽象需要第二个实例**：目前仅有 G3 一个模型，此时提取"通用动力学
+接口"大概率会把 G3 的偶然特征（存在 advocate / governance 特权节点、干预限于长度
+τ 的窗口、调用 LLM 故需记 cost）误当成本质。建议触发条件为下列任一成立时再做：
+
+1. 准备注册第二个动力学模型（届时有两个实例可对照，抽象才有依据）；
+2. G3 试验进入稳定产出期，例如一轮投稿投递完成。
+
+在此之前不新增 `RunRequest` 字段，新参数一律走已有的 `param_overrides`，
+以冻结接口、防止耦合继续扩大。

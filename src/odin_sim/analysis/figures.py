@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 if TYPE_CHECKING:  # pragma: no cover - 仅类型检查期生效
     from matplotlib.figure import Figure
 
@@ -36,6 +38,7 @@ __all__ = [
     "plot_bars",
     "plot_curves",
     "plot_heatmap",
+    "plot_timeseries",
     "resolve_metric_columns",
 ]
 
@@ -434,6 +437,99 @@ def plot_heatmap(
 
     fig.colorbar(im, ax=ax, label=cols.label(metric))
     return _finish(fig, out)
+
+
+def plot_timeseries(
+    rows: Rows,
+    columns: Sequence[str] | None = None,
+    *,
+    title: str | None = None,
+    xlabel: str = "step",
+    grid: bool = True,
+    band_alpha: float = 0.25,
+    out: str | Path | None = None,
+) -> Figure:
+    """把时间序列聚合成果画成"每个列一个子图、每组一条曲线 + 置信带"。
+
+    ``rows`` 来自 ``aggregate_timeseries``：每项含分组键、``step`` 数组，以及
+    每个列的 ``.mean / .ci_low / .ci_high`` 数组。**渲染层不重算统计量**——
+    画出来的每个点都是聚合层已经给好的值。
+
+    图例在整张图底部统一管理（而不是每个子图各放一份重复图例）。
+    """
+    plt = _import_matplotlib()
+    if not rows:
+        raise ValueError("没有可绘制的时间序列行")
+
+    candidates = [
+        k[: -len(".mean")]
+        for k in rows[0]
+        if k.endswith(".mean") and rows[0].get(k) is not None
+    ]
+    targets = list(columns) if columns else sorted(candidates)
+    if not targets:
+        raise ValueError(
+            f"没有可绘制的序列列（期望 <col>.mean）。可用列：{sorted(rows[0]) or '（无）'}"
+        )
+    unknown = [c for c in targets if f"{c}.mean" not in rows[0]]
+    if unknown:
+        raise KeyError(f"没有这些序列列：{unknown}。可用：{sorted(candidates)}")
+
+    fig, axes = plt.subplots(
+        len(targets), 1, figsize=(7.5, 2.9 * len(targets)), squeeze=False, sharex=True
+    )
+    handles: list[Any] = []
+    labels: list[str] = []
+
+    for index, col in enumerate(targets):
+        ax = axes[index][0]
+        for row in rows:
+            series = row.get(f"{col}.mean")
+            if series is None:
+                continue
+            steps = np.asarray(row["step"])
+            mean = np.asarray(series, dtype=float)
+            label = _series_label(row)
+            (line,) = ax.plot(steps, mean, label=label)
+            if index == 0:
+                handles.append(line)
+                labels.append(label)
+            low = row.get(f"{col}.ci_low")
+            high = row.get(f"{col}.ci_high")
+            if low is not None and high is not None:
+                ax.fill_between(
+                    steps,
+                    np.asarray(low, dtype=float),
+                    np.asarray(high, dtype=float),
+                    alpha=band_alpha,
+                )
+        ax.set_ylabel(col)
+        if grid:
+            ax.grid(True, alpha=0.3)
+
+    axes[-1][0].set_xlabel(xlabel)
+    if handles:
+        ncol = min(len(handles), 4)
+        fig.legend(handles, labels, loc="lower center", ncol=ncol, frameon=False,
+                   bbox_to_anchor=(0.5, 0.0))
+    if title:
+        fig.suptitle(title)
+    return _finish(fig, out)
+
+
+def _series_label(row: Mapping[str, Any]) -> str:
+    """用分组键拼出图例标签，如 ``beta_gov=0.2, tau=60``。"""
+    skip_suffix = (".mean", ".std", ".ci_low", ".ci_high", ".proportion")
+    parts: list[str] = []
+    for key, value in row.items():
+        if key in ("step", "run_id") or key.endswith(".n"):
+            continue
+        if key.endswith(skip_suffix):
+            continue
+        if isinstance(value, np.ndarray):
+            continue
+        parts.append(f"{key}={value}")
+    return ", ".join(parts) if parts else "all"
 
 
 def _ordered_labels(rows: Rows, key: str) -> list[str]:
