@@ -106,14 +106,20 @@ def test_capabilities_defaults_do_not_overclaim():
 
 
 def test_builtin_registration_is_all_or_nothing():
-    """内建注册要么全成功，要么全不注册——不允许"注册一半"。
+    """G3 内核要么全注册、要么全不注册；参考模型始终可用（不依赖内核）。
 
-    半注册会让调用方以为模型可用，是实验静默跑错实现的典型来源。
+    半注册会让调用方以为模型可用，是实验静默跑错实现的典型来源；而参考模型
+    是平台自带的纯 Python 模型，不依赖外部内核，任何环境下都应在册，用于
+    CI / 测试 / 离线演示。
     """
     err = builtin_registration_error()
-    # 平台原生拓扑不依赖 baseline，任何环境下都应在册
+    # 平台原生拓扑 + 参考模型：任何环境下都应可用
     assert "platform-v1" in TOPOLOGY.names()
+    assert "reference-v1" in DYNAMICS.names()
+    assert "ref.extreme_final_ord" in METRICS.names()
+    assert "ref.backfire" in METRICS.names()
 
+    # g3：要么全注册、要么全不注册（内核缺失时整套不在册）
     if err is None:
         assert "g3-baseline-v1" in DYNAMICS.names()
         assert "g3-baseline-v1" in TOPOLOGY.names()
@@ -121,6 +127,5 @@ def test_builtin_registration_is_all_or_nothing():
         assert "g3.backfire" in METRICS.names()
     else:
         assert isinstance(err, str) and err
-        assert DYNAMICS.names() == []
-        assert TOPOLOGY.names() == ["platform-v1"]
-        assert METRICS.names() == []
+        assert "g3-baseline-v1" not in DYNAMICS.names()
+        assert "g3.extreme_final_ord" not in METRICS.names()

@@ -1,0 +1,21 @@
+{
+  "name": "ref-demo",
+  "model": "reference-v1",
+  "base": {
+    "mode": "cross",
+    "placement": "hub",
+    "tau": 60,
+    "scenario": "polarized"
+  },
+  "axes": {
+    "beta_gov": [0.2, 0.4]
+  },
+  "seeds": {"start": 1, "count": 3, "step": 1},
+  "store_trajectory": false,
+  "on_error": "abort",
+  "control": {
+    "overrides": {"beta_gov": 0.0},
+    "seed": "same",
+    "name": "no-governance"
+  }
+}

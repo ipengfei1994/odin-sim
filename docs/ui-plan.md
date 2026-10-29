@@ -182,3 +182,25 @@ P2-3 后台进程复用 CLI、进度信号来自逐 run 落盘的 `runs/<id>/man
 （`sweep_command` / `write_config` / `progress_count` / `read_log_tail` / `task_status`）
 + `configure` 页后台流程冒烟（fake 进程，避内核；注意**不可全局补丁 `streamlit.rerun`**，
 否则会破坏 AppTest 自身的 rerun 机制）。
+
+## 14. 内置参考模型（reference-v1）—— 内核缺失也能端到端跑通
+
+**动机**：`odin_g3` 内核未就绪时，平台"运行 sweep"路径无法验证。为让平台独立做完、
+独立测，新增一个**纯 Python、确定性、零外部依赖**的参考动力学模型 `reference-v1`，
+作为 G3 内核的 stand-in。
+
+* **位置**：`src/odin_sim/model/adapters/reference.py`；`register()` 在 `register_builtins()`
+  中**始终注册**（与 G3 的"全有或全无"解耦），不依赖 `ODIN_BASELINE_ROOT`。
+* **契约**：实现同一份 `DynamicsModel` 协议与 `RunOutput` 数据形状（轨迹 (151,200,2)、
+  `series_ord/series_all` 为 (151,) 比例量、指标从 `params` 读阈值）；配套 `ref.*`
+  四指标（extreme_final_ord / joint_final_ord / backfire / alert_lead_time），
+  语义与 `g3.*` 对齐但纯 Python 实现。
+* **切换**：G3 就绪后只需在配置里把 `model` 从 `reference-v1` 改为 `g3-baseline-v1`，
+  平台代码无需改动。
+* **UI 默认模型**：`configure.build_default_config` 用 `default_model_name()` 自适应——
+  有 g3 用 g3、否则用 reference-v1；指标输入默认 `all`（跨模型通用）。
+* **注意**：参考模型数值是合成占位，**不能当作科学结论**；真实物理等价性由 G3 的
+  指纹回归（`tests/regression`）保证。
+* **测试**：`tests/unit/test_reference_model.py` 11 项（注册 / 协议 / 确定性 / 端到端
+  sweep 产物 schema + 数值合法性 / 治理效应），**无需内核即可全绿**——这是"内核缺失
+  也能端到端测试平台"的核心证明。CLI 示例：`configs/sweep_reference.json`。

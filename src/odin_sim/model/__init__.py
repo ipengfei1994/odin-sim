@@ -52,15 +52,22 @@ def register_builtins() -> None:
 
     TOPOLOGY.register(TOPOLOGY_NAME, PlatformTopology(), overwrite=True)
 
+    g3_error: str | None = None
     try:
         from .adapters.g3 import register as _register_g3
 
         _register_g3()
     except Exception as exc:  # pragma: no cover - 取决于外部环境
-        if _builtin_error is None:
-            _builtin_error = f"{type(exc).__name__}: {exc}"
-        return
-    _builtin_error = None
+        g3_error = f"{type(exc).__name__}: {exc}"
+
+    # 参考模型不依赖内核，始终注册：作为内置 CI / 测试 / 离线演示模型，
+    # 让平台在没有 odin_g3 时也能端到端跑通。它若失败属平台自身 bug，直接抛出。
+    from .adapters.reference import register as _register_ref
+
+    _register_ref()
+
+    # _builtin_error 仅反映 G3 内核可用性；参考模型失败不掩盖该信息。
+    _builtin_error = g3_error
 
 
 def builtin_registration_error() -> str | None:

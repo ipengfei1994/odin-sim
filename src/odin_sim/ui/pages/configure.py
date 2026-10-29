@@ -29,11 +29,19 @@ CONFIG_ATTR = "ui_configure_text"
 TASK_KEY = "ui_async_task"
 
 
+def default_model_name() -> str:
+    """默认模型：有 G3 内核用 g3-baseline-v1，否则用内置参考模型 reference-v1。
+
+    参考模型纯 Python、零外部依赖、永远可用，让平台在内核缺失时也能跑通。
+    """
+    return "g3-baseline-v1" if DYNAMICS.has("g3-baseline-v1") else "reference-v1"
+
+
 def build_default_config() -> dict[str, Any]:
     """一个合法、快速的小网格默认配置（4 条运行）。"""
     return {
         "name": "ui-quick-run",
-        "model": "g3-baseline-v1",
+        "model": default_model_name(),
         "base": {
             "mode": "cross",
             "placement": "hub",
@@ -171,10 +179,11 @@ def render() -> None:
         )
 
     metrics_raw = st.text_input(
-        "指标（逗号分隔；留空=不计算，all=全部非配对指标）",
-        value="",
+        "指标（逗号分隔；留空=不计算，all=全部已注册非配对指标）",
+        value="all",
         key="metrics_input",
-        help="与 CLI --metrics 同口径；需要配对对照的指标（如反噬）只有配置 control 时才计算。",
+        help="与 CLI --metrics 同口径；all 会计算当前已注册模型的所有非配对指标"
+        "（需要配对对照的指标如反噬，仅当本 sweep 配置了 control 时才计算）。",
     )
     metrics = [m.strip() for m in metrics_raw.split(",") if m.strip()] or None
 
