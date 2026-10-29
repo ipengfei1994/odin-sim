@@ -18,6 +18,11 @@
 * 每步：朝本簇中心轻微聚合（w_base）+ 治理开启后（t>=tau）朝中庸 (0.5,0.5)
   按 beta_gov 强度拉拢 + 微噪声。beta_gov 越大、tau 越早，极端占比下降越明显——
   使 explore/timeseries 在扫描 beta_gov 时呈现有意义的差异。
+* **个体易感性（susceptibility）**：每个 agent 对治理的响应强度跨 2 个数量级
+  对数均匀分布。这是让曲线可读的关键——若全体受同样拉力，人群会齐步跨过阈值，
+  极端占比只有"1 或 0"两种取值（曲线成一堵墙，且种子间无差异 → 无 CI 带）；
+  加入异质性后，同一 beta_gov 下部分 agent 被拉回中庸、部分不为所动，
+  极端占比随 beta_gov **分级下降**，呈可读的剂量-响应曲线。
 * 比例量（extreme / joint / mean_opinion）均落在 [0,1]，分析层按比例量裁剪。
 """
 from __future__ import annotations
@@ -99,14 +104,17 @@ class ReferenceDynamics:
 
         tau = int(request.tau)
         beta = float(request.beta_gov)
-        w_base = 0.02
+        w_base = 0.05
+        # 个体易感性跨 2 个数量级：治理效果分级，而非全体齐步跨阈值。
+        suscept = 10.0 ** rng.uniform(-2.0, 0.0, size=n)
 
         traj = np.empty((t, n, d), dtype=float)
         traj[0] = op
         for step in range(1, t):
             op = op + w_base * (centers_agent - op)  # 向本簇中心聚合
             if step >= tau:
-                op = op + beta * (0.5 - op)  # 治理开启：朝中庸拉拢
+                # 治理开启：朝中庸拉拢，强度 = beta_gov × 个体易感性
+                op = op + (beta * suscept)[:, None] * (0.5 - op)
             op = op + rng.normal(0.0, 0.005, size=(n, d))
             op = np.clip(op, 0.0, 1.0)
             traj[step] = op

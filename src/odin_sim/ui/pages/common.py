@@ -14,7 +14,9 @@ from odin_sim.storage import layout
 from odin_sim.ui.pages.runs import discover_sweeps
 from odin_sim.ui import plotly_utils
 
-DEFAULT_DIR = "results/ts_demo"
+# 默认展示目录：稠密网格演示数据（beta_gov 11 档 × 5 种子），曲线成形且有 CI 带。
+# 生成方式：configs/sweep_demo_dense.json（参考模型，无需 G3 内核）。
+DEFAULT_DIR = "results/ref_demo_dense"
 
 # 横轴 / 分组候选键（与 results.csv 列对应，按研究常用顺序）。
 CANDIDATE_KEYS = ["mode", "placement", "scenario", "beta_gov", "tau", "config_id"]

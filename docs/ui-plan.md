@@ -201,9 +201,21 @@ P2-3 后台进程复用 CLI、进度信号来自逐 run 落盘的 `runs/<id>/man
   有 g3 用 g3、否则用 reference-v1；指标输入默认 `all`（跨模型通用）。
 * **注意**：参考模型数值是合成占位，**不能当作科学结论**；真实物理等价性由 G3 的
   指纹回归（`tests/regression`）保证。
-* **测试**：`tests/unit/test_reference_model.py` 11 项（注册 / 协议 / 确定性 / 端到端
-  sweep 产物 schema + 数值合法性 / 治理效应），**无需内核即可全绿**——这是"内核缺失
-  也能端到端测试平台"的核心证明。CLI 示例：`configs/sweep_reference.json`。
+* **响应分级（关键）**：初版让全体 agent 受同样治理拉力，人群齐步跨阈值 → 极端占比
+  只有 1 或 0（曲线是一堵墙，且种子间零方差、无 CI 带）。现给每个 agent 一个跨 2 个
+  数量级的**个体易感性**（对数均匀），同一 `beta_gov` 下部分被拉回中庸、部分不为所动，
+  极端占比随 `beta_gov` 分级下降（实测 1.00 → 0.75 → 0.61 → 0.47 → 0.37 → 0.26 → 0.17
+  → 0.09），种子间有有限方差 → CI 带可见。由
+  `test_reference_response_is_graded_not_all_or_nothing` 守住。
+* **演示数据**：`configs/sweep_demo_dense.json`（`beta_gov` 11 档 × 5 种子 = 55 runs，
+  `store_trajectory: true`），跑 `results/ref_demo_dense`；UI 各页默认目录已指向它，
+  保证开箱即看到成形曲线而非两段直线。
+* **侧边栏导航**：`cli.py ui` 传 `--client.showSidebarNavigation false`——关掉 Streamlit
+  自动的 `pages/` 文件列表导航（会重复列出 app/common/compare/... 并泄露模块结构），
+  只保留 `app.py` 内的 radio 导航。
+* **测试**：`tests/unit/test_reference_model.py` 12 项（注册 / 协议 / 确定性 / 端到端
+  sweep 产物 schema + 数值合法性 / 治理效应 / 响应分级），**无需内核即可全绿**——
+  这是"内核缺失也能端到端测试平台"的核心证明。CLI 示例：`configs/sweep_reference.json`。
 * **闭环回归**：`tests/regression/test_reference_loop.py` 6 项，把"配置 → 运行 → 浏览 →
   可视化 → 演化曲线 → 导出"整条 L4 链路**在无内核环境**跑通：产物 schema、续跑幂等、
   `analysis.aggregate` / `aggregate_timeseries` 聚合口径、plotly 成图与 HTML 导出，

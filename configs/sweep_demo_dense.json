@@ -1,0 +1,21 @@
+{
+  "name": "ref-demo-dense",
+  "model": "reference-v1",
+  "base": {
+    "mode": "cross",
+    "placement": "hub",
+    "beta_gov": 0.0,
+    "tau": 60,
+    "scenario": "polarized"
+  },
+  "axes": {
+    "beta_gov": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  },
+  "seeds": {
+    "start": 1,
+    "count": 5,
+    "step": 1
+  },
+  "store_trajectory": true,
+  "on_error": "abort"
+}

@@ -385,6 +385,10 @@ def _cmd_ui(args: argparse.Namespace) -> int:
         sys.executable, "-m", "streamlit", "run", str(app_path),
         "--server.headless", "true" if args.no_browser else "false",
         "--browser.gatherUsageStats", "false",
+        # 关掉 Streamlit 自动的「pages/ 文件列表」侧边栏导航：本项目用 app.py 内的
+        # radio 导航，自动导航会重复列出模块文件名（app/common/compare/...），
+        # 既冗余又向用户泄露实现结构。
+        "--client.showSidebarNavigation", "false",
     ]
     if args.host:
         cmd += ["--server.address", args.host]

@@ -13,7 +13,8 @@ import streamlit as st
 
 from odin_sim.storage import layout
 
-DEFAULT_SWEEP_DIR = "results/ts_demo"
+# 默认展示目录：稠密网格演示数据，见 configs/sweep_demo_dense.json。
+DEFAULT_SWEEP_DIR = "results/ref_demo_dense"
 
 
 # --------------------------------------------------------------------------- #

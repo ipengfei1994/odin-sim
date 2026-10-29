@@ -70,11 +70,7 @@ def test_reference_run_schema():
 
 
 def test_reference_governance_reduces_extreme():
-    """beta_gov 越大，普通节点极端占比末值越低（演示治理效应）。
-
-    收敛较快，故用 beta=0.0（无治理，停在极化簇）与 beta=0.4（全程治理，
-    拉向中庸）的清晰对比，避免 tau 微调带来的边界抖动。
-    """
+    """beta_gov 越大，普通节点极端占比末值越低（演示治理效应）。"""
 
     def extreme_final(beta: float) -> float:
         req = RunRequest(
@@ -88,7 +84,38 @@ def test_reference_governance_reduces_extreme():
     with_gov = extreme_final(0.4)
     assert no_gov > with_gov
     assert no_gov > 0.9
-    assert with_gov < 0.1
+
+
+def test_reference_response_is_graded_not_all_or_nothing():
+    """极端占比随 beta_gov **分级下降**，而非"全体齐步跨阈值"的全有或全无。
+
+    这是 UI 曲线可读性的前提：若响应是阶跃，扫描 beta_gov 只会得到 1 → 0 的
+    一堵墙，且种子间零方差（无 CI 带）。个体易感性异质性正是为此而设。
+    """
+    grid = [0.0, 0.1, 0.2, 0.4, 0.7, 1.0]
+
+    def extreme_final(beta: float, seed: int) -> float:
+        out = ReferenceDynamics().run(
+            RunRequest(
+                mode="cross", seed=seed, scenario="polarized", beta_gov=beta, tau=60
+            )
+        )
+        mask = ~(out.is_adv | out.is_gov)
+        return float(_extreme_flag(out.traj[-1], 0.8)[mask].mean())
+
+    means = [float(np.mean([extreme_final(b, s) for s in (1, 2, 3)])) for b in grid]
+
+    # 单调下降
+    assert all(a > b for a, b in zip(means, means[1:])), means
+    # 端点接近饱和，中间必须"在中间"——若退化成阶跃，中段只会是 0 或 1
+    assert means[0] > 0.9
+    assert means[-1] < 0.3
+    assert 0.1 < means[2] < 0.9  # beta=0.2 处应有实质梯度
+    # 种子间存在有限方差（否则聚合后没有置信带）
+    spread = max(extreme_final(0.2, s) for s in (1, 2, 3)) - min(
+        extreme_final(0.2, s) for s in (1, 2, 3)
+    )
+    assert spread > 0.0
 
 
 def _ref_spec() -> SweepSpec:
