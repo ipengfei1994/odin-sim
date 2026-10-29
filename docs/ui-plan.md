@@ -145,34 +145,40 @@ src/odin_sim/ui/
 |---|---|---|---|
 | P2-1 | 导出：可视化 / 演化曲线页导出交互图（HTML）+ 聚合表（CSV），无需 kaleido | 完成 | `ui/pages/explore.py` · `timeseries.py` · `common.export_figure_and_table` |
 | P2-2 | 多 sweep 对比：多选 sweep 按共享横轴叠加某指标，分色 + 误差棒 | 完成 | `ui/pages/compare.py` · `common.pick_sweep_dirs` · `plotly_utils.compare_figure` |
-| P2-3 | 长任务异步化（大网格不阻塞会话） | **设计完成，未实装**（见 §13） | — |
+| P2-3 | 长任务异步化（大网格后台进程 + 进度监控，不阻塞会话） | 完成（手动「刷新进度」；见 §13） | `ui/background.py` · `pages/configure.py` `_render_task_monitor` |
 
 **P2 验收对照**：导出与对比均为读-only，复用 `analysis.aggregate` / `load_results`，
 不重跑仿真、不引入动力学逻辑；核心层零反向 `ui` 依赖由 `test_ui_layering` 守住；
-新增页（compare）与导出按钮均有 AppTest 冒烟（基于 `ts_demo` / `viz_demo` 已落盘产物）。
+新增页（compare）与导出按钮均有 AppTest 冒烟（基于 `ts_demo` / `viz_demo` 已落盘产物）；
+P2-3 后台进程复用 CLI、进度信号来自逐 run 落盘的 `runs/<id>/manifest.json`，
+内核无关地由 UI 侧 `expand_sweep` 算出 `total`。
 
-## 13. P2-3 长任务异步化设计（待实装）
+## 13. P2-3 长任务异步化（已实装）
 
-**问题**：`configure` 页「运行 sweep」是同步 `run_sweep`，大网格（数百 run）会长时间
-阻塞 Streamlit 会话，体验差且可能超时断连。
+**问题**：`configure` 页「运行 sweep」同步跑会阻塞 Streamlit 会话。
 
-**目标**：让大网格在后台跑，UI 显示进度、可继续浏览，完成后自动刷新出结果。
+**方案（已实现，复用 CLI）**：
 
-**方案（Streamlit 单机形态下的增量演进）**：
+1. **触发分层**：`configure` 页按 `run_count` 与 `MAX_SYNC_RUNS` 提供「同步 / 后台」单选；
+   超过阈值默认建议后台。
+2. **后台执行**：`ui/background.py` 用 `subprocess.Popen` 启动
+   `python -m odin_sim.cli sweep --config <dir>/sweep_config.json --out <dir>`，
+   stdout/stderr 合并写入 `<dir>/run.log`。进程独立，崩了不影响会话，且与 CLI 产物
+   schema 完全一致——L4 编排层解耦收益在此显现。
+3. **进度监控**：`configure` 页 `_render_task_monitor` 读 `st.session_state` 中的任务，
+   用 `ui/background.task_status`（`runs/<id>/manifest.json` 计数 vs `expand_sweep` 算出的
+   `total`）显示 `st.progress`；运行中给「刷新进度」按钮（点一下 `st.rerun` 一次），
+   失败读 `run.log` 尾部展示，完成把目录记到「浏览结果」页（`runs` 页消费
+   `pending_browse_dir` 自动载入）。
+4. **失败处理**：进程非零退出时状态置 `failed`，UI 读 `run.log` 尾部；「清除任务」会
+   先 `terminate()` 仍在跑的进程。
 
-1. **触发分层**：`configure` 页按 `run_count` 阈值（现有 `MAX_SYNC_RUNS`）分流——
-   小网格维持同步（即时出结果）；超过阈值走异步后台。
-2. **后台执行**：用 `subprocess` 启动 `odin-sim sweep <config> --out <dir>`（复用 CLI，
-   天然隔离、可独立进程、崩了不影响会话）；或由 `run_sweep` 包一层 `concurrent.futures`
-   线程。倾向前者——与 CLI 完全一致、可离线重跑、便于审计。
-3. **进度轮询**：UI 用 `st.session_state` 记录「进行中任务 → 输出目录」，以
-   `st.rerun` 或 `time.sleep` + 轮询 `sweep_manifest.json` 的 `counts` 增量；
-   完成后把目录填入 `runs` / `explore` 页默认路径并提示。
-4. **落盘契约**：沿用现有产物（`sweep_manifest.json` / `results.csv`），后台产物与
-   同步产物同 schema，浏览/对比页无需改动——L4 编排层的解耦收益在此显现。
-5. **失败处理**：后台进程非零退出时，捕获 stderr 落盘为 `<dir>/error.log`，
-   UI 读取并展示；不吞异常。
+**为何用「刷新进度」按钮而非自动 `time.sleep + st.rerun` 轮询**：自动轮询会让整个脚本
+每秒重跑、占用会话线程且不易测试；手动刷新已满足"大网格不阻塞会话"的核心目标（sweep
+跑在独立进程，切到「浏览结果」也能看已落盘部分）。若后续要真正自动刷新，可演进为后台
+线程 + `st.rerun` 或前端定时刷新，属增量优化。
 
-**为何暂缓**：① 本机无 `odin_g3` 内核，端到端无法验证；② 异步涉及会话状态与进程管理，
-   属 P3 级改动，应与「多 sweep 对比 / 导出」之后的真实需求（有无大规模 sweep）一起决策。
-   当前读-only 三页 + 小网格同步已覆盖课题组内部 MVP；异步作为明确的下一步演进点保留。
+**测试约束**：`tests/unit/test_ui_background.py` 9 项——`background.py` 纯函数
+（`sweep_command` / `write_config` / `progress_count` / `read_log_tail` / `task_status`）
++ `configure` 页后台流程冒烟（fake 进程，避内核；注意**不可全局补丁 `streamlit.rerun`**，
+否则会破坏 AppTest 自身的 rerun 机制）。

@@ -56,7 +56,10 @@ def render() -> None:
     st.header("浏览结果")
     st.caption("只读消费已落盘产物，不触发任何计算。")
 
-    root = _pick_sweep_dir()
+    pending = st.session_state.get("pending_browse_dir")
+    root = _pick_sweep_dir(default=pending) if pending else _pick_sweep_dir()
+    # 消费一次后即清除，避免之后一直覆盖用户手动选择。
+    st.session_state.pop("pending_browse_dir", None)
     if root is None:
         return
 
@@ -65,10 +68,10 @@ def render() -> None:
     _show_runs_explorer(root)
 
 
-def _pick_sweep_dir() -> Path | None:
+def _pick_sweep_dir(default: str = DEFAULT_SWEEP_DIR) -> Path | None:
     raw = st.text_input(
         "Sweep 目录",
-        value=DEFAULT_SWEEP_DIR,
+        value=default,
         help="包含 sweep_manifest.json 的目录；留空或无效时会列出 results/ 下已检测到的 sweep。",
     )
     root = Path(raw)

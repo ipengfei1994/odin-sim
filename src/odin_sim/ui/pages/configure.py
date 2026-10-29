@@ -1,11 +1,11 @@
-"""P1-4：配置实验并触发小规模 sweep（同步）。
+"""P1-4 + P2-3：配置实验并触发 sweep（同步小网格 / 后台大网格）。
 
 复用 ``experiments.run_sweep`` 与 ``config_bridge`` 的校验，不重写任何
-仿真 / 校验逻辑。P1 仅支持**小网格同步**运行（见 ``docs/ui-plan.md`` §7 Q1）：
-大网格会阻塞 Streamlit 会话，需留到 P3 做异步化（届时演进 FastAPI 形态）。
+仿真 / 校验逻辑。P2-3 起的**异步化**把大网格交给后台独立进程
+（``ui.background``，复用 CLI），UI 轮询进度、不阻塞会话；产物与同步路径同 schema。
 
 页面逻辑抽成纯函数（``build_default_config`` / ``parse_config`` /
-``trigger_sweep``），便于脱离 streamlit 运行时做单元测试。
+``trigger_sweep`` / ``_launch_background``），便于脱离 streamlit 运行时做单元测试。
 """
 from __future__ import annotations
 
@@ -18,13 +18,15 @@ import streamlit as st
 from odin_sim.experiments import SweepError, run_sweep
 from odin_sim.model import builtin_registration_error
 from odin_sim.model.registry import DYNAMICS
+from odin_sim.ui import background
 from odin_sim.ui.config_bridge import validate_sweep_config
 
-# P1 同步上限：超过该运行数给出明确阻塞警告（P3 异步化后再放宽）。
+# 同步上限：超过该运行数默认建议后台运行（大网格同步会阻塞会话）。
 MAX_SYNC_RUNS = 12
 
 DEFAULT_OUT_ROOT = "results/ui_run"
 CONFIG_ATTR = "ui_configure_text"
+TASK_KEY = "ui_async_task"
 
 
 def build_default_config() -> dict[str, Any]:
@@ -104,7 +106,10 @@ def trigger_sweep(
 # --------------------------------------------------------------------------- #
 def render() -> None:
     st.header("配置实验")
-    st.caption("复用 experiments 的校验与执行；P1 仅支持小网格同步运行。")
+    st.caption("复用 experiments 的校验与执行；小网格同步、大网格后台异步。")
+
+    # 后台任务监控：若有进行中/刚完成的任务，先展示进度与结果。
+    _render_task_monitor()
 
     if CONFIG_ATTR not in st.session_state:
         st.session_state[CONFIG_ATTR] = json.dumps(
@@ -143,10 +148,19 @@ def render() -> None:
     if warn is not None:
         st.warning(warn)
     if validation.run_count > MAX_SYNC_RUNS:
-        st.warning(
+        st.info(
             f"运行数 {validation.run_count} 超过同步上限 {MAX_SYNC_RUNS}："
-            f"点「运行 sweep」会**阻塞本会话**直到跑完（P1 已知限制，P3 异步化）。"
+            f"建议用「后台」模式运行，UI 会轮询进度、不阻塞会话。"
         )
+
+    run_mode = st.radio(
+        "运行方式",
+        ["同步（阻塞本会话）", "后台（推荐大网格）"],
+        index=1 if validation.run_count > MAX_SYNC_RUNS else 0,
+        key="run_mode",
+        help="后台模式把 sweep 交给独立进程，UI 轮询进度、不阻塞；"
+             "产物与同步路径完全一致，可在「浏览结果」直接查看。",
+    )
 
     with c_export:
         st.download_button(
@@ -173,7 +187,12 @@ def render() -> None:
     )
 
     if st.button("运行 sweep", key="run_sweep", type="primary"):
-        _run_and_report(validation.spec, out_root, metrics)
+        if run_mode.startswith("后台"):
+            _launch_background(
+                validation.spec, out_root, metrics, validation.run_count
+            )
+        else:
+            _run_and_report(validation.spec, out_root, metrics)
 
 
 def _run_and_report(spec: Any, out_root: str, metrics: list[str] | None) -> None:
@@ -203,3 +222,87 @@ def _run_and_report(spec: Any, out_root: str, metrics: list[str] | None) -> None
     st.markdown(f"- **results.csv**：`{summary['results_csv']}`")
     st.markdown(f"- **sweep_manifest**：`{summary['sweep_manifest']}`")
     st.info(f"去「浏览结果」页，目录输入框填入 `{out_root}` 即可查看。")
+
+
+# --------------------------------------------------------------------------- #
+# 后台异步（P2-3）
+# --------------------------------------------------------------------------- #
+def _render_task_monitor() -> None:
+    """展示后台任务进度/结果；运行中时每 1 秒自动 rerun 轮询（不阻塞独立进程）。"""
+    task = st.session_state.get(TASK_KEY)
+    if not task:
+        return
+
+    popen = task["popen"]
+    out_root = task["out_root"]
+    total = task["total"]
+    name = task.get("name", "")
+    status = background.task_status(popen, out_root, total)
+    state = status["state"]
+    done = status["done"]
+
+    st.subheader(f"后台任务：{name}")
+    if total > 0:
+        st.progress(min(done / total, 1.0))
+        st.caption(f"已完成 {done}/{total}")
+    else:
+        st.caption("尚未产出 run manifest（等待首个 run 落盘）…")
+
+    if state == "running":
+        st.info(
+            "运行中…（点「刷新进度」更新；可切到「浏览结果」查看已落盘部分，"
+            "切换不会中断后台进程。）"
+        )
+        if st.button("刷新进度", key="refresh_task"):
+            st.rerun()
+        return
+    if state == "failed":
+        st.error("后台 sweep 失败（进程非零退出）。日志尾部：")
+        st.code(status["error"] or "（无日志）", language="text")
+        if st.button("清除任务", key="clear_fail"):
+            _clear_task()
+            st.rerun()
+        return
+
+    # done
+    st.success(f"后台 sweep 完成：{done}/{total}（含跳过，已落盘 results.csv）。")
+    st.markdown(f"- **目录**：`{out_root}`")
+    st.session_state["pending_browse_dir"] = str(out_root)
+    st.info("已把目录记到「浏览结果」页，去那里即可自动载入。")
+    if st.button("清除任务", key="clear_done"):
+        _clear_task()
+        st.rerun()
+
+
+def _launch_background(
+    spec: Any,
+    out_root: str,
+    metrics: list[str] | None,
+    total: int,
+) -> None:
+    """后台启动 sweep：写配置 + 起独立进程，记录到 session_state 供轮询。"""
+    if not DYNAMICS.has(spec.model):
+        st.error(model_availability_message(spec.model))
+        return
+    _clear_task()  # 先清掉上一次遗留（含仍在跑的进程）
+    popen = background.launch(spec.to_dict(), out_root, metrics=metrics)
+    st.session_state[TASK_KEY] = {
+        "popen": popen,
+        "out_root": str(out_root),
+        "total": total,
+        "name": spec.name,
+    }
+    st.rerun()
+
+
+def _clear_task() -> None:
+    """清除任务记录；若进程仍在跑则先 terminate。"""
+    task = st.session_state.get(TASK_KEY)
+    if task and task.get("popen") is not None:
+        popen = task["popen"]
+        try:
+            if popen.poll() is None:
+                popen.terminate()
+        except Exception:
+            pass
+    st.session_state.pop(TASK_KEY, None)
