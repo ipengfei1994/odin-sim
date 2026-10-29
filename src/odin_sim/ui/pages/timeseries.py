@@ -11,7 +11,7 @@ import streamlit as st
 
 from odin_sim.analysis import aggregate_timeseries, load_run_series
 from odin_sim.ui import plotly_utils
-from odin_sim.ui.pages.common import pick_sweep_dir
+from odin_sim.ui.pages.common import pick_sweep_dir, export_figure_and_table
 
 STEP_COLUMN = "step"
 
@@ -70,12 +70,14 @@ def render() -> None:
     fig = plotly_utils.timeseries_figure(rows, columns, group_by)
     st.plotly_chart(fig, width="stretch")
 
-
-    st.subheader("分组概览")
     summary = [
         {**( {k: r.get(k, "") for k in group_by} if group_by else {"group": "all"}),
          "n": int(r[f"{columns[0]}.n"]) if columns else 0,
          "steps": int(np.asarray(r[STEP_COLUMN]).size)}
         for r in rows
     ]
-    st.dataframe(pd.DataFrame(summary), width="stretch")
+    summary_df = pd.DataFrame(summary)
+    export_figure_and_table(fig, summary_df, prefix="timeseries", label="曲线")
+
+    st.subheader("分组概览")
+    st.dataframe(summary_df, width="stretch")

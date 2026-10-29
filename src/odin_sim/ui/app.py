@@ -17,6 +17,7 @@ _PAGES: list[tuple[str, str]] = [
     ("浏览结果", "odin_sim.ui.pages.runs"),
     ("可视化", "odin_sim.ui.pages.explore"),
     ("演化曲线", "odin_sim.ui.pages.timeseries"),
+    ("多 sweep 对比", "odin_sim.ui.pages.compare"),
 ]
 
 

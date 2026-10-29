@@ -139,5 +139,40 @@ src/odin_sim/ui/
 读-only 页不触发任何计算。UI 可复现 CLI 结果的逐位一致性由 `run_sweep` 同一代码路径保证
 （需内核依赖就绪后实跑验证）。
 
-**P2（待做）**：演化曲线按 `beta_gov` / `tau` 分组切换已在 P1-5b 的 `group_by` 多选支持；
-多 sweep 对比、导出、长任务异步化留到 P3。
+## 12. P2 演进进度
+
+| Checkpoint | 内容 | 状态 | 入口 |
+|---|---|---|---|
+| P2-1 | 导出：可视化 / 演化曲线页导出交互图（HTML）+ 聚合表（CSV），无需 kaleido | 完成 | `ui/pages/explore.py` · `timeseries.py` · `common.export_figure_and_table` |
+| P2-2 | 多 sweep 对比：多选 sweep 按共享横轴叠加某指标，分色 + 误差棒 | 完成 | `ui/pages/compare.py` · `common.pick_sweep_dirs` · `plotly_utils.compare_figure` |
+| P2-3 | 长任务异步化（大网格不阻塞会话） | **设计完成，未实装**（见 §13） | — |
+
+**P2 验收对照**：导出与对比均为读-only，复用 `analysis.aggregate` / `load_results`，
+不重跑仿真、不引入动力学逻辑；核心层零反向 `ui` 依赖由 `test_ui_layering` 守住；
+新增页（compare）与导出按钮均有 AppTest 冒烟（基于 `ts_demo` / `viz_demo` 已落盘产物）。
+
+## 13. P2-3 长任务异步化设计（待实装）
+
+**问题**：`configure` 页「运行 sweep」是同步 `run_sweep`，大网格（数百 run）会长时间
+阻塞 Streamlit 会话，体验差且可能超时断连。
+
+**目标**：让大网格在后台跑，UI 显示进度、可继续浏览，完成后自动刷新出结果。
+
+**方案（Streamlit 单机形态下的增量演进）**：
+
+1. **触发分层**：`configure` 页按 `run_count` 阈值（现有 `MAX_SYNC_RUNS`）分流——
+   小网格维持同步（即时出结果）；超过阈值走异步后台。
+2. **后台执行**：用 `subprocess` 启动 `odin-sim sweep <config> --out <dir>`（复用 CLI，
+   天然隔离、可独立进程、崩了不影响会话）；或由 `run_sweep` 包一层 `concurrent.futures`
+   线程。倾向前者——与 CLI 完全一致、可离线重跑、便于审计。
+3. **进度轮询**：UI 用 `st.session_state` 记录「进行中任务 → 输出目录」，以
+   `st.rerun` 或 `time.sleep` + 轮询 `sweep_manifest.json` 的 `counts` 增量；
+   完成后把目录填入 `runs` / `explore` 页默认路径并提示。
+4. **落盘契约**：沿用现有产物（`sweep_manifest.json` / `results.csv`），后台产物与
+   同步产物同 schema，浏览/对比页无需改动——L4 编排层的解耦收益在此显现。
+5. **失败处理**：后台进程非零退出时，捕获 stderr 落盘为 `<dir>/error.log`，
+   UI 读取并展示；不吞异常。
+
+**为何暂缓**：① 本机无 `odin_g3` 内核，端到端无法验证；② 异步涉及会话状态与进程管理，
+   属 P3 级改动，应与「多 sweep 对比 / 导出」之后的真实需求（有无大规模 sweep）一起决策。
+   当前读-only 三页 + 小网格同步已覆盖课题组内部 MVP；异步作为明确的下一步演进点保留。

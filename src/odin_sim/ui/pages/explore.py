@@ -11,10 +11,11 @@ import streamlit as st
 from odin_sim.analysis import aggregate, filter_by_role, load_results
 from odin_sim.ui import plotly_utils
 from odin_sim.ui.pages import runs as runs_page
-from odin_sim.ui.pages.common import pick_sweep_dir
-
-# 横轴 / 分组的候选键（与 results.csv 列对应，按研究常用顺序）。
-_CANDIDATE_KEYS = ["mode", "placement", "scenario", "beta_gov", "tau", "config_id"]
+from odin_sim.ui.pages.common import (
+    CANDIDATE_KEYS,
+    pick_sweep_dir,
+    export_figure_and_table,
+)
 
 
 def render() -> None:
@@ -31,7 +32,7 @@ def render() -> None:
         return
 
     numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-    key_cols = [c for c in _CANDIDATE_KEYS if c in df.columns]
+    key_cols = [c for c in CANDIDATE_KEYS if c in df.columns]
 
     metrics = st.multiselect(
         "指标（数值列）",
@@ -61,8 +62,11 @@ def render() -> None:
     )
     st.plotly_chart(fig, width="stretch")
 
+    agg_df = pd.DataFrame(rows)
+    export_figure_and_table(fig, agg_df, prefix="explore")
+
     st.subheader("聚合表")
-    st.dataframe(pd.DataFrame(rows), width="stretch")
+    st.dataframe(agg_df, width="stretch")
 
 
 def _default_metrics(numeric_cols: list[str]) -> list[str]:

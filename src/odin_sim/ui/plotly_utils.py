@@ -105,3 +105,61 @@ def _sort_key(value: Any) -> Any:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return float(value)
     return str(value)
+
+
+def figure_to_html(fig: go.Figure, include_plotlyjs: str = "cdn") -> str:
+    """把交互图导出为自包含 HTML 字符串（无需 kaleido，离线可打开）。
+
+    用于 UI 的「下载图 (HTML)」按钮；研究者可在浏览器中继续缩放/悬停。
+    若需位图（PNG），应另装 ``kaleido`` 后调 ``fig.to_image``。
+    """
+    return fig.to_html(include_plotlyjs=include_plotlyjs, full_html=False)
+
+
+def compare_figure(
+    rows: Sequence[Mapping[str, Any]],
+    x_key: str,
+    metric: str,
+    sweep_key: str = "sweep",
+) -> go.Figure:
+    """多 sweep 对比：横轴 ``x_key``，y = ``metric`` 均值，按 sweep 名称分色叠加。
+
+    每个 sweep 一条均值线 + 误差棒（聚合层给出 CI 时）；缺失 CI 则只画均值线。
+    数据全部来自 ``analysis.aggregate`` 的输出，本函数只负责渲染。
+    """
+    fig = go.Figure()
+    sweeps = sorted({str(r.get(sweep_key, "")) for r in rows})
+    y_field = f"{metric}.mean"
+    low_field = f"{metric}.ci_low"
+    high_field = f"{metric}.ci_high"
+    for si, sw in enumerate(sweeps):
+        color = _PALETTE[si % len(_PALETTE)]
+        sub = sorted(
+            (r for r in rows if str(r.get(sweep_key, "")) == sw),
+            key=lambda r: _sort_key(r.get(x_key)),
+        )
+        xs = [_sort_key(r.get(x_key)) for r in sub]
+        ys = [r.get(y_field) for r in sub]
+        lows = [r.get(low_field) for r in sub]
+        highs = [r.get(high_field) for r in sub]
+        has_ci = all(
+            v is not None for v in lows + highs if v is not None
+        ) and all(v is not None for v in lows) and all(v is not None for v in highs)
+        trace: dict = dict(
+            x=xs, y=ys, mode="lines+markers", name=sw, line=dict(color=color)
+        )
+        if has_ci:
+            trace["error_y"] = dict(
+                type="data", symmetric=False,
+                array=[h - y for h, y in zip(highs, ys)],
+                arrayminus=[y - l for l, y in zip(lows, ys)],
+            )
+        fig.add_trace(go.Scatter(**trace))
+    fig.update_layout(
+        xaxis_title=x_key,
+        yaxis_title=f"{metric}（均值 ± CI）",
+        legend_title_text="sweep",
+        hovermode="x unified",
+        margin=dict(l=40, r=20, t=30, b=40),
+    )
+    return fig
