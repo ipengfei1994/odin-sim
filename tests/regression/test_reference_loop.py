@@ -9,13 +9,14 @@
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from odin_sim.analysis import aggregate, aggregate_timeseries, load_run_series
-from odin_sim.ui import plotly_utils
+from odin_sim.ui import background, plotly_utils
 from odin_sim.ui.config_bridge import validate_sweep_config
 from odin_sim.ui.pages import configure as configure_page
 from odin_sim.ui.pages import runs as runs_page
@@ -114,6 +115,36 @@ def test_timeseries_page_aggregation_and_figure(swept):
 
     fig = plotly_utils.timeseries_figure(rows, [column], ["beta_gov"])
     assert len(fig.data) >= 1
+
+
+def test_background_subprocess_real_run(tmp_path):
+    """P2-3 后台路径用**真实子进程**验证（此前只能用 fake 进程桩）。
+
+    参考模型让这条路径第一次能在无内核环境端到端跑：起 CLI 子进程 →
+    轮询 ``runs/<id>/manifest.json`` 计数 → 完成后产物与同步路径同 schema。
+    """
+    root = tmp_path / "bg"
+    cfg = _config()
+    cfg["name"] = "ref-bg"
+
+    proc = background.launch(cfg, root, metrics=["all"])
+
+    status = None
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        status = background.task_status(proc, root, total=4)
+        if status["state"] != "running":
+            break
+        time.sleep(0.3)
+
+    assert status is not None
+    assert status["state"] == "done", background.read_log_tail(root)
+    assert status["done"] == 4
+    assert (root / "sweep_config.json").is_file()  # 配置已落盘，供复现
+
+    df = runs_page.load_results_df(root)
+    assert df is not None and len(df) == 4
+    assert SCALAR_METRIC in df.columns
 
 
 def test_rerun_is_idempotent(swept):

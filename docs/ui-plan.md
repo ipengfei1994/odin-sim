@@ -204,7 +204,8 @@ P2-3 后台进程复用 CLI、进度信号来自逐 run 落盘的 `runs/<id>/man
 * **测试**：`tests/unit/test_reference_model.py` 11 项（注册 / 协议 / 确定性 / 端到端
   sweep 产物 schema + 数值合法性 / 治理效应），**无需内核即可全绿**——这是"内核缺失
   也能端到端测试平台"的核心证明。CLI 示例：`configs/sweep_reference.json`。
-* **闭环回归**：`tests/regression/test_reference_loop.py` 5 项，把"配置 → 运行 → 浏览 →
+* **闭环回归**：`tests/regression/test_reference_loop.py` 6 项，把"配置 → 运行 → 浏览 →
   可视化 → 演化曲线 → 导出"整条 L4 链路**在无内核环境**跑通：产物 schema、续跑幂等、
-  `analysis.aggregate` / `aggregate_timeseries` 聚合口径、plotly 成图与 HTML 导出。
+  `analysis.aggregate` / `aggregate_timeseries` 聚合口径、plotly 成图与 HTML 导出，
+  以及**后台异步路径用真实子进程**验证（P2-3 此前只能用 fake 进程桩）。
   它锁定的是**平台工程正确性**（不依赖具体内核）；物理等价性仍归 G3 指纹回归。
