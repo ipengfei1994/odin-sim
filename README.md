@@ -23,7 +23,7 @@ edge comes from the platform's own output.</sub>
 
 English · [简体中文](README.zh-CN.md)
 
-[Overview](#overview) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Experiments & Reproducibility](#experiments--reproducibility) · [Roadmap](#roadmap)
+[Overview](#overview) · [Architecture](#architecture) · [Quick Start](#quick-start) · [Web Workbench](#web-workbench) · [Experiments & Reproducibility](#experiments--reproducibility) · [Roadmap](#roadmap)
 
 ---
 
@@ -138,6 +138,12 @@ uv venv --python 3.13
 uv sync --extra dev
 ```
 
+To also run the browser-based workbench, add the `web` extra:
+
+```bash
+uv sync --extra dev --extra web
+```
+
 ### Generate a network
 
 This needs no external project:
@@ -195,6 +201,39 @@ uv run python -m odin_sim.cli verify-metrics \
 
 ---
 
+## Web Workbench
+
+ODIN-Sim ships a self-contained web workbench — no Node build step, and Plotly
+is vendored locally — so a team can browse stored sweeps, design and launch new
+sweeps, and inspect aggregated metrics with 95% confidence intervals, all from a
+browser.
+
+Install the web dependencies, then start the server:
+
+```bash
+uv sync --extra dev --extra web
+uv run odin-sim serve                 # http://127.0.0.1:8420
+```
+
+- **Port:** `8420` by default; pass `--port <p>` if it is already taken.
+- **Results location:** served from `./results` under the current directory.
+  Override with `--root /path/to/results` or the `ODIN_RESULTS_ROOT`
+  environment variable. New sweeps launched from the web UI are written there.
+- **Offline:** the frontend (`web/`) is static and bundles Plotly
+  (`web/vendor/plotly.min.js`), so it works without any CDN.
+
+Views: **Overview** (run summary + recent sweeps) · **Results** (aggregated
+metrics with CI bands and sample-size tags) · **Experiments** (design and launch
+a sweep) · **Dynamics** (registered models / topologies / metrics) · **Network**
+(on-demand topology graph) · **Reproducibility**.
+
+> The built-in `reference-v1` is a dependency-free reference dynamics model used
+> to exercise the platform end to end. Production dynamics (the G3 baseline)
+> register through the same `DYNAMICS` registry; once registered, the workbench
+> picks them up automatically — no front-end changes required.
+
+---
+
 ## Experiments & Reproducibility
 
 Reproducibility is a design requirement, not an afterthought. Every run is
@@ -248,6 +287,7 @@ baseline. They are not scientific findings about opinion dynamics.</sub>
   (configurable `ControlSpec`)
 - [x] Static result plots: curves with CI bands, grouped bars, phase heatmaps (`plot`)
 - [x] Time-series persistence and evolution curves with CI bands (`curves`)
+- [x] Web research workbench: FastAPI read/submit API plus a static, offline Plotly frontend (`serve`)
 
 **Planned**
 

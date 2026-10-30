@@ -338,6 +338,14 @@ def build_parser() -> argparse.ArgumentParser:
     u.add_argument("--no-browser", action="store_true",
                    help="不自动打开浏览器（适合无头/远程服务器）")
 
+    w = sub.add_parser("serve", help="启动本地 HTTP 工作台（需安装 [web] 依赖）")
+    w.add_argument("--host", default="127.0.0.1", help="绑定主机")
+    w.add_argument("--port", type=int, default=8420, help="端口（默认 8420）")
+    w.add_argument("--root", default=None,
+                   help="sweep 产物根目录（默认取 $ODIN_RESULTS_ROOT 或 ./results）")
+    w.add_argument("--no-web", action="store_true",
+                   help="只暴露 JSON API，不挂载静态前端")
+
     return parser
 
 
@@ -404,6 +412,26 @@ def _cmd_ui(args: argparse.Namespace) -> int:
         return 2
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+
+        from .api import create_app
+    except ImportError:
+        print(
+            "[error] 未找到 fastapi / uvicorn；请先安装 Web 依赖：uv sync --extra web",
+            file=sys.stderr,
+        )
+        return 2
+
+    web_dir = Path(__file__).resolve().parents[2] / "web"  # src/odin_sim/cli.py → <repo>/web
+    app = create_app(args.root, mount_web=False if args.no_web else web_dir)
+    print(f"[serve] http://{args.host}:{args.port}")
+    print(f"[serve] results root: {app.state.results_root}")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "info":
@@ -422,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_curves(args)
     if args.command == "ui":
         return _cmd_ui(args)
+    if args.command == "serve":
+        return _cmd_serve(args)
     return 2
 
 

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-pref="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODIN-Sim · Research Workbench</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M4 15 L12 4 L20 15 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M9 15 L12 10.5 L15 15 Z" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">ODIN</span>
+        <span class="brand-sub">OPINION DYNAMICS</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <p class="nav-label">WORKSPACE</p>
+      <button class="nav-item is-active" data-view="overview"><span class="nav-ico"></span>Overview</button>
+      <button class="nav-item" data-view="experiments"><span class="nav-ico"></span>Experiments</button>
+      <button class="nav-item" data-view="network"><span class="nav-ico"></span>Network explorer</button>
+      <button class="nav-item" data-view="dynamics"><span class="nav-ico"></span>Dynamics</button>
+      <button class="nav-item" data-view="results"><span class="nav-ico"></span>Results</button>
+      <button class="nav-item" data-view="reproducibility"><span class="nav-ico"></span>Reproducibility</button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <p class="nav-label">ENVIRONMENT</p>
+      <p class="env-line"><span class="dot dot-ok" id="env-dot"></span><span id="env-text">loading…</span></p>
+      <p class="version-line">odin-sim · <span id="version-text">—</span></p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <p class="crumb">ODIN-SIM / RESEARCH WORKSPACE</p>
+        <h1 id="page-title">Research overview</h1>
+        <p class="page-sub" id="page-sub">A reproducible workspace for opinion dynamics experiments.</p>
+      </div>
+      <div class="topbar-right">
+        <span class="badge badge-engine" id="engine-badge"><span class="dot"></span>ENGINE</span>
+        <button class="theme-toggle" id="theme-toggle" title="Theme: default = System · click cycles Dark / Light">◐ Theme</button>
+      </div>
+    </header>
+
+    <div id="content" class="content"></div>
+
+    <footer class="disclaimer">
+      All figures, tables and KPI values on this page are computed from stored run
+      artefacts in this workspace. Nothing here is illustrative placeholder data.
+    </footer>
+  </main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- Plotly 本地化：工作平台需离线可复现，不依赖外部 CDN。 -->
+<script src="vendor/plotly.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
