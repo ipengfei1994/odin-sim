@@ -1,0 +1,92 @@
+"""S4｜指标定义表（由 experiment-specification-v1.md 脚本化提取，勿手改）。
+
+每行 = (metric_id, layer, math_tbd, implementation_status)。
+``math_tbd=True`` 表示 v2 未给出公式/口径，**禁止**在本层补写定义。
+本表只登记 ID 与状态，不含任何科学口径；公式由 S0 后经
+``register_definition()`` 显式登记，且必须携带 metric_def_version。
+"""
+from __future__ import annotations
+
+METRIC_ROWS: tuple[tuple[str, str, bool, str], ...] = (
+    ('V-Π', 'L1-validity', True, 'needs_agent_capability + needs_external_instrument'),
+    ('V-bias', 'L1-validity', True, 'needs_agent_capability'),
+    ('V-zero', 'L1-validity', True, 'needs_sim_capability_pairing'),
+    ('V-persona-convergence', 'L1-validity', True, 'needs_agent_capability'),
+    ('V-micro-macro-gap', 'L1-validity', True, 'needs_event_system'),
+    ('V-fluency-fallacy', 'L1-validity', True, 'needs_agent_capability + needs_external_instrument'),
+    ('V-physics-washing', 'L1-validity', True, 'needs_scan_capability'),
+    ('V-model-drift', 'L1-validity', True, 'needs_agent_capability'),
+    ('M0-D', 'L2-state', False, 'derivable_existing'),
+    ('M1-BC', 'L2-state', True, 'derivable_existing（公式 TBD，实现被阻塞）'),
+    ('M2-K', 'L2-state', True, 'derivable_existing（算法 TBD，实现被阻塞）'),
+    ('M3-S1', 'L2-state', False, 'derivable_existing（依赖 M2-K 的 TBD）'),
+    ('M4-Daff', 'L2-state', True, 'needs_event_system + needs_agent_capability'),
+    ('M5-rho-obs', 'L2-state', True, 'derivable_existing（系数类型 TBD）'),
+    ('M6-NODEdiff', 'L2-state', True, 'needs_external_instrument（需 Li 2025 原文口径）'),
+    ('M7-NODEconv', 'L2-state', True, 'needs_external_instrument'),
+    ('M8-NodeSD', 'L2-state', False, 'derivable_existing（S 定义 TBD）'),
+    ('M9-NODEclus', 'L2-state', True, 'needs_external_instrument'),
+    ('M10-phase-consensus', 'L2-state', True, 'derivable_existing（判据 TBD）'),
+    ('M11-phase-critical', 'L2-state', True, 'derivable_existing（判据 TBD）'),
+    ('M12-phase-deep-polarization', 'L2-state', True, 'derivable_existing（判据 TBD）'),
+    ('3A-Q', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3A-assortativity', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3A-homophily', 'L3A-structure', False, 'needs_persisted_network'),
+    ('3A-community-count', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3A-cross-edge-ratio', 'L3A-structure', False, 'needs_persisted_network'),
+    ('3A-APL', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3A-degree-dist', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3A-neighbor-opinion-corr', 'L3A-structure', True, 'needs_persisted_network'),
+    ('3B-cascade-size', 'L3B-diffusion', True, 'needs_event_system'),
+    ('3B-depth', 'L3B-diffusion', False, 'needs_event_system'),
+    ('3B-width', 'L3B-diffusion', False, 'needs_event_system'),
+    ('3B-amplification', 'L3B-diffusion', True, 'needs_event_system'),
+    ('3B-giant-cluster-threshold', 'L3B-diffusion', True, 'needs_scan_capability'),
+    ('3B-audience-structure', 'L3B-diffusion', True, 'needs_event_system + needs_persisted_network'),
+    ('3C-post', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-noop', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-comment', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-like', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-reshare', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-action-split', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-pagerank', 'L3C-behavior', True, 'needs_event_system'),
+    ('3C-betweenness', 'L3C-behavior', True, 'needs_event_system'),
+    ('3C-in-degree', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-out-degree', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-sentiment', 'L3C-behavior', True, 'needs_event_system + needs_agent_capability'),
+    ('3C-activity-duration', 'L3C-behavior', True, 'needs_event_system'),
+    ('3C-engagement-volume', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-engagement-rate', 'L3C-behavior', False, 'needs_event_system'),
+    ('3C-external-validity', 'L3C-behavior', True, 'needs_event_system + needs_agent_capability'),
+    ('3D-potential-network', 'L3D-exposure', False, 'needs_persisted_network + needs_event_system'),
+    ('3D-exposure-network', 'L3D-exposure', False, 'needs_event_system'),
+    ('3D-influence-network', 'L3D-exposure', True, 'needs_event_system + needs_agent_capability'),
+    ('3D-E-ij', 'L3D-exposure', False, 'needs_event_system'),
+    ('3D-delta-E', 'L3D-exposure', False, 'needs_event_system + needs_external_instrument'),
+    ('3D-selective-exposure', 'L3D-exposure', True, 'needs_event_system + needs_agent_capability'),
+    ('3D-network-overlap', 'L3D-exposure', True, 'needs_persisted_network + needs_event_system'),
+    ('G-pi', 'L4-governance', False, 'needs_event_system'),
+    ('G-Cost1', 'L4-governance', False, 'needs_event_system'),
+    ('G-Cost2', 'L4-governance', True, 'needs_external_instrument + needs_agent_capability'),
+    ('G-Cost3', 'L4-governance', True, 'needs_event_system'),
+    ('G-L1', 'L4-governance', False, 'needs_external_instrument + needs_sim_capability_pairing'),
+    ('G-L2', 'L4-governance', False, 'needs_external_instrument + needs_sim_capability_pairing'),
+    ('G-L3', 'L4-governance', False, 'needs_external_instrument'),
+    ('P-chi', 'L5-phase', True, 'needs_scan_capability'),
+    ('P-binder', 'L5-phase', True, 'needs_scan_capability'),
+    ('P-Tconv', 'L5-phase', True, 'needs_scan_capability'),
+    ('P-data-collapse', 'L5-phase', True, 'needs_scan_capability'),
+    ('P-hysteresis', 'L5-phase', True, 'needs_scan_capability'),
+    ('P-ctrl-epsilon', 'L5-phase', False, 'derivable_existing（作为配置字段）'),
+    ('P-ctrl-rho', 'L5-phase', False, 'derivable_existing（作为配置字段）'),
+    ('P-ctrl-d', 'L5-phase', False, 'derivable_existing（作为配置字段）'),
+    ('P-ctrl-pAI', 'L5-phase', False, 'needs_agent_capability'),
+    ('P-ctrl-alpha', 'L5-phase', False, 'needs_sim_capability_pairing'),
+    ('P-ctrl-T', 'L5-phase', False, 'needs_agent_capability'),
+)
+
+METRIC_IDS: tuple[str, ...] = tuple(r[0] for r in METRIC_ROWS)
+TBD_METRIC_IDS: frozenset[str] = frozenset(r[0] for r in METRIC_ROWS if r[2])
+LAYERS: tuple[str, ...] = tuple(sorted({r[1] for r in METRIC_ROWS}))
+
+__all__ = ["METRIC_ROWS", "METRIC_IDS", "TBD_METRIC_IDS", "LAYERS"]

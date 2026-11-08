@@ -65,11 +65,16 @@ def write_manifest(
     role: str = "main",
     control_run_id: str | None = None,
     control_status: str = "none",
+    research: Mapping[str, Any] | None = None,
 ) -> Path:
     """写单次运行的 manifest，返回文件路径。
 
     ``role`` / ``control_*`` 描述本次 sweep 对这条运行的用法（主运行还是
     对照、与谁配对），不属于运行规格本身，因此不进 ``spec``，也不影响 run_id。
+
+    ``research`` 是研究扩展层的可选自描述块（S1）。**缺省 None 时完全不写
+    入 payload**，既有 manifest 逐字节不变——这是保住 G3 指纹回归的前提；
+    只有研究实验显式传入时才附加该键。
     """
     payload = {
         "manifest_version": MANIFEST_VERSION,
@@ -88,6 +93,8 @@ def write_manifest(
         "environment": dict(environment),
         "error": dict(error) if error else None,
     }
+    if research is not None:
+        payload["research"] = dict(research)
     path = manifest_path(run_dir_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
